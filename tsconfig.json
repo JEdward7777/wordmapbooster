@@ -7,5 +7,12 @@
       "declaration": true,
       "lib": ["es5", "es2019", "dom", "scripthost"],
   },
-  "exclude": ["__test__"]
+  "include": [
+    "./src/**/*"
+  ],
+  "exclude": [
+    "**/__tests__",
+    "**/__mocks__",
+    "node_modules"
+  ]
 }
