@@ -1,11 +1,23 @@
 {
   "name": "wordmapbooster",
   "version": "1.0.0",
-  "description": "Adds an AI boost to wordmap.  Wordmap is a tool for helping word alignments between a source and target langauge.",
+  "description": "Adds an AI boost to wordmap.  Wordmap is a tool for helping word alignments between a source and target language.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest",
+    "build": "tsc",
+    "prepare": "npm run build"
   },
   "author": "Joshua Lansford",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "@types/jest": "^29.5.3",
+    "jest": "^29.6.2",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.1.6"
+  },
+  "dependencies": {
+    "wordmap": "^0.6.0",
+    "wordmap-lexer": "^0.3.6"
+  }
 }
