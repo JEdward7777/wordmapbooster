@@ -46,14 +46,30 @@ exports.catboost_feature_order = [
     "uniqueness",
     "lemmaUniqueness",
 ];
-var AbstractWordMapWrapper = /** @class */ (function (_super) {
-    __extends(AbstractWordMapWrapper, _super);
-    //constructor(opts?: WordMapProps){
+var AbstractWordMapWrapper = /** @class */ (function () {
     function AbstractWordMapWrapper(opts) {
-        return _super.call(this, opts) || this;
+        this.wordMap = new wordmap_1.default(opts);
+        this.engine = this.wordMap.engine;
     }
+    /**
+     * Appends alignment memory engine.
+     * @param alignments - an alignment or array of alignments
+     */
+    AbstractWordMapWrapper.prototype.appendAlignmentMemory = function (alignments) {
+        this.wordMap.appendAlignmentMemory(alignments);
+    };
+    /**
+     * Predicts the word alignments between the sentences.
+     * @param {string} sourceSentence - a sentence from the source text
+     * @param {string} targetSentence - a sentence from the target text
+     * @param {number} maxSuggestions - the maximum number of suggestions to return
+     * @return {Suggestion[]}
+    */
+    AbstractWordMapWrapper.prototype.predict = function (sourceSentence, targetSentence, maxSuggestions) {
+        return this.wordMap.predict(sourceSentence, targetSentence, maxSuggestions);
+    };
     return AbstractWordMapWrapper;
-}(wordmap_1.default));
+}());
 exports.AbstractWordMapWrapper = AbstractWordMapWrapper;
 var BoostWordMap = /** @class */ (function (_super) {
     __extends(BoostWordMap, _super);

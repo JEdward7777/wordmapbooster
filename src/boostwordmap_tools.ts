@@ -32,12 +32,39 @@ export const catboost_feature_order : string[] = [
 ];
 
 
-export abstract class AbstractWordMapWrapper extends WordMap{
-    //constructor(opts?: WordMapProps){
-    constructor(opts?: {}){
-        super(opts);
+
+export abstract class AbstractWordMapWrapper {
+
+    //This used to inherit from WordMap, but a strange
+    //bug which was insisting that super be called with new
+    //made me just decide to make WordMap a member var.
+
+    private wordMap: WordMap;
+    public engine: Engine;
+  
+    constructor(opts?: {}) {
+      this.wordMap = new WordMap(opts);
+      this.engine = (this.wordMap as any).engine;
     }
 
+    /**
+     * Appends alignment memory engine.
+     * @param alignments - an alignment or array of alignments
+     */
+    appendAlignmentMemory(alignments: Alignment | Alignment[]): void{
+        this.wordMap.appendAlignmentMemory(alignments);
+    }
+
+    /**
+     * Predicts the word alignments between the sentences.
+     * @param {string} sourceSentence - a sentence from the source text
+     * @param {string} targetSentence - a sentence from the target text
+     * @param {number} maxSuggestions - the maximum number of suggestions to return
+     * @return {Suggestion[]}
+    */
+    predict(sourceSentence: string | Token[], targetSentence: string | Token[], maxSuggestions?: number): Suggestion[]{
+        return this.wordMap.predict(sourceSentence, targetSentence, maxSuggestions);
+    }
 }
 
 export abstract class BoostWordMap extends AbstractWordMapWrapper{

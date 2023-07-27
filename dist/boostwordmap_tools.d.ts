@@ -1,9 +1,24 @@
-import WordMap, { Alignment, Suggestion, Prediction } from 'wordmap';
+import { Alignment, Suggestion, Prediction, Engine } from 'wordmap';
 import { Token } from "wordmap-lexer";
 import { JLBoost } from "./JLBoost";
 export declare const catboost_feature_order: string[];
-export declare abstract class AbstractWordMapWrapper extends WordMap {
+export declare abstract class AbstractWordMapWrapper {
+    private wordMap;
+    engine: Engine;
     constructor(opts?: {});
+    /**
+     * Appends alignment memory engine.
+     * @param alignments - an alignment or array of alignments
+     */
+    appendAlignmentMemory(alignments: Alignment | Alignment[]): void;
+    /**
+     * Predicts the word alignments between the sentences.
+     * @param {string} sourceSentence - a sentence from the source text
+     * @param {string} targetSentence - a sentence from the target text
+     * @param {number} maxSuggestions - the maximum number of suggestions to return
+     * @return {Suggestion[]}
+    */
+    predict(sourceSentence: string | Token[], targetSentence: string | Token[], maxSuggestions?: number): Suggestion[];
 }
 export declare abstract class BoostWordMap extends AbstractWordMapWrapper {
     protected ratio_of_training_data: number;
