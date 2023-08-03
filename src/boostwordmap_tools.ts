@@ -40,11 +40,74 @@ export abstract class AbstractWordMapWrapper {
     //made me just decide to make WordMap a member var.
 
     private wordMap: WordMap;
-    public engine: Engine;
-  
+    public engine: Engine; //a convenience alias to inside wordMap.
+    protected opts: any; //constructor arguments so we can save it out.
+
+    static load( data: {[key:string]:any}): AbstractWordMapWrapper{
+        //switch on the data.classType and load the appropriate class
+        const loaders = {
+            "PlaneWordMap": PlaneWordMap,
+            "JLBoostWordMap": JLBoostWordMap,
+            "JLBoostMultiWordMap": JLBoostMultiWordMap,
+            "JLBoostMultiWordMap2": JLBoostMultiWordMap2,
+            "MorphJLBoostWordMap": MorphJLBoostWordMap,
+        };
+
+        // First construct it and then call specificLoad on it.
+        const MapperConstructor = loaders[data.classType];
+        if (!MapperConstructor) {
+            throw new Error(`Unknown classType: ${data.classType}`);
+        }
+
+        const mapper = new MapperConstructor(data.opts);
+
+
+        mapper.specificLoad(data);
+
+
+        return mapper;
+    }
+
     constructor(opts?: {}) {
-      this.wordMap = new WordMap(opts);
-      this.engine = (this.wordMap as any).engine;
+        //If opts.train_steps is not set, set it to 1000.
+        if (!('train_steps' in opts)) opts["train_steps"] = 1000;
+
+        this.wordMap = new WordMap(opts);
+        this.engine = (this.wordMap as any).engine;
+        this.opts = opts;
+    }
+
+
+    /**
+     * Saves the model to a json-able structure.
+     * @returns {Object}
+     */
+    save(): {[key:string]:any}{
+        const result = {
+            "wordMap.engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index": Object.fromEntries((this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index ),
+            "wordMap.engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index": Object.fromEntries((this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index ),
+            "wordMap.engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index": Object.fromEntries((this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index ),
+            "opts": this.opts,
+        };
+        return result;
+    }
+
+    /**
+     * This is an abstract method which loads from a structure which is JSON-able.
+     * @param data - the data to load
+     */
+    specificLoad(data: any): AbstractWordMapWrapper {
+        //opts is handled in the constructor.
+        Object.entries(data['wordMap.engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index']).forEach((key_value) => {
+            (this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index.set(key_value[0],key_value[1]);
+        });
+        Object.entries(data['wordMap.engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index']).forEach((key_value) => {
+            (this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index.set(key_value[0],key_value[1]);
+        });
+        Object.entries(data['wordMap.engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index']).forEach((key_value) => {
+            (this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index.set(key_value[0],key_value[1]);
+        });
+        return this;
     }
 
     /**
@@ -65,11 +128,34 @@ export abstract class AbstractWordMapWrapper {
     predict(sourceSentence: string | Token[], targetSentence: string | Token[], maxSuggestions?: number): Suggestion[]{
         return this.wordMap.predict(sourceSentence, targetSentence, maxSuggestions);
     }
+
+
 }
 
 export abstract class BoostWordMap extends AbstractWordMapWrapper{
 
     protected ratio_of_training_data: number = 1; //The ratio of how much data to use so we can thin data.
+
+    /**
+     * Saves the model to a json-able structure.
+     * @returns {Object}
+     */
+    save(): { [key: string]: any } {
+        const result = {...super.save(),
+            "ratio_of_training_data": this.ratio_of_training_data,
+        };
+        return result;
+    }
+
+    /**
+     * This is an abstract method which loads from a structure which is JSON-able.
+     * @param data - the data to load
+     */
+    specificLoad(data: any): AbstractWordMapWrapper {
+        super.specificLoad(data);
+        this.ratio_of_training_data = data["ratio_of_training_data"];
+        return this;
+    }
 
     setTrainingRatio(ratio_of_training_data: number) {
         this.ratio_of_training_data = ratio_of_training_data;
@@ -224,6 +310,17 @@ export abstract class BoostWordMap extends AbstractWordMapWrapper{
 export class PlaneWordMap extends AbstractWordMapWrapper{
     setTrainingRatio(ratio_of_training_data: number) { /*do nothing.*/ }
 
+    /**
+     * Saves the model to a json-able structure.
+     * @returns {Object}
+     */
+    save(): { [key: string]: any } {
+        const result = {...super.save(),
+            "classType": "PlaneWordMap"
+        };
+        return result;
+    }
+
     add_alignments_1( source_text: {[key: string]: Token[]}, target_text: {[key: string]: Token[]}, alignments: {[key: string]: Alignment[] }):Promise<void>{
         // In "plane" the different ways of adding are all the same.
         Object.entries(alignments).forEach(([verseKey,verse_alignments]) => this.appendAlignmentMemory( verse_alignments ) );
@@ -310,6 +407,30 @@ function jlboost_prediction_to_feature_dict( prediction: Prediction ): {[key:str
 export class JLBoostWordMap extends BoostWordMap{
     protected jlboost_model: JLBoost | null = null;
 
+
+    /**
+     * Saves the model to a json-able structure.
+     * @returns {Object}
+     */
+    save(): { [key: string]: any } {
+        const result = {...super.save(),
+            "jlboost_model": this.jlboost_model?.save(),
+            "classType": "JLBoostWordMap"
+        };
+        return result;
+    }
+
+
+    /**
+     * This is an abstract method which loads from a structure which is JSON-able.
+     * @param data - the data to load
+     */
+    specificLoad(data: any): AbstractWordMapWrapper {
+        super.specificLoad(data);
+        this.jlboost_model = JLBoost.load(data.jlboost_model);
+        return this;
+    }
+
     catboost_score( predictions: Prediction[]): Prediction[] { 
         for( let prediction_i = 0; prediction_i < predictions.length; ++prediction_i ){
             const numerical_features = jlboost_prediction_to_feature_dict(predictions[prediction_i]);
@@ -350,7 +471,7 @@ export class JLBoostWordMap extends BoostWordMap{
             this.jlboost_model.train({
                 xy_data:training_data,
                 y_index:"output",
-                n_steps:1000,
+                n_steps:this.opts.train_steps,
                 tree_depth:12,//7,
                 //tree_depth:2,
                 talk:true,
@@ -362,6 +483,19 @@ export class JLBoostWordMap extends BoostWordMap{
 
 
 export class JLBoostMultiWordMap extends JLBoostWordMap{
+
+    /**
+     * Saves the model to a json-able structure.
+     * @returns {Object}
+     */
+    save(): { [key: string]: any } {
+        const result = {...super.save(),
+            "classType": "JLBoostMultiWordMap"
+        };
+        return result;
+    }
+
+
     //collect_boost_training_data needs to not use is_correct_prediction but something like is_sub_correct_prediction
     collect_boost_training_data( source_text: {[key: string]: Token[]}, 
         target_text: {[key: string]: Token[]}, 
@@ -449,6 +583,20 @@ export class JLBoostMultiWordMap extends JLBoostWordMap{
 //This version is the same as JLBoostMultiWordMap except that it includes the ngram output of wordmap
 //as extra information.
 export class JLBoostMultiWordMap2 extends JLBoostWordMap{
+
+
+    /**
+     * Saves the model to a json-able structure.
+     * @returns {Object}
+     */
+    save(): { [key: string]: any } {
+        const result = {...super.save(),
+            "classType": "JLBoostMultiWordMap2"
+        };
+        return result;
+    }
+
+
     //collect_boost_training_data needs to not use is_correct_prediction but something like is_sub_correct_prediction
     collect_boost_training_data( source_text: {[key: string]: Token[]}, 
         target_text: {[key: string]: Token[]}, 
@@ -498,7 +646,7 @@ export class JLBoostMultiWordMap2 extends JLBoostWordMap{
     }
 
 
-        /**
+    /**
      * Predicts the word alignments between the sentences.
      * @param {string} sourceSentence - a sentence from the source text
      * @param {string} targetSentence - a sentence from the target text
@@ -772,6 +920,30 @@ function create_ngram_predictions( scored_predictions: Prediction[] ): Predictio
 export class MorphJLBoostWordMap extends BoostWordMap{
     protected jlboost_model: JLBoost | null = null;
 
+    /**
+     * Saves the model to a json-able structure.
+     * @returns {Object}
+     */
+    save(): { [key: string]: any } {
+        const result = {
+            ...super.save(),
+            "jlboost_model": this.jlboost_model?.save(),
+            "classType": "MorphJLBoostWordMap"
+        };
+        return result;
+    }
+
+    /**
+     * This is an abstract method which loads from a structure which is JSON-able.
+     * @param data - the data to load
+     */
+    specificLoad(data: any): AbstractWordMapWrapper {
+        super.specificLoad(data);
+        this.jlboost_model = JLBoost.load(data.jlboost_model);
+        return this;
+    }
+
+
     catboost_score( predictions: Prediction[]): Prediction[] { 
         for( let prediction_i = 0; prediction_i < predictions.length; ++prediction_i ){
             const numerical_features = morph_code_prediction_to_feature_dict(predictions[prediction_i]);
@@ -801,7 +973,7 @@ export class MorphJLBoostWordMap extends BoostWordMap{
             this.jlboost_model.train({
                 xy_data:training_data,
                 y_index:"output",
-                n_steps:1000,
+                n_steps:this.opts.train_steps,
                 tree_depth:12,//7,
                 //tree_depth:2,
                 talk:true,

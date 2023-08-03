@@ -6,7 +6,7 @@ abstract class BranchOrLeaf{
 
     abstract predict(xy_data: {[key: string]: number|string}[], categorical_categories: string[]): number[];
 
-    abstract to_dict(): {[key:string]:any};
+    abstract save(): {[key:string]:any};
 }
 
 export class TreeLeaf extends BranchOrLeaf{
@@ -25,8 +25,15 @@ export class TreeLeaf extends BranchOrLeaf{
         return [...Array(xy_data.length)].map(() => this.average);
     }
 
-    to_dict(): {[key:string]:any}{
+    save(): {[key:string]:any}{
         return {'average': this.average};
+    }
+
+    /**
+    * This is a static function which loads from a structure which is JSON-able.
+    */
+    static load(data: {[key:string]:any}): TreeLeaf{
+        return new TreeLeaf(data['average']);
     }
 }
 
@@ -54,15 +61,37 @@ export class TreeBranch extends BranchOrLeaf {
         this.split_value = null;
     }
 
-    to_dict(): {[key:string]:any}{
+    /**
+     * Saves the current state of the object as a key-value pair object.
+     *
+     * @return {{[key:string]:any}} The key-value pair object representing the state of the object.
+     */
+    save(): {[key:string]:any}{
         const result: {[key:string]:any} = {};
 
         result['feature_index'] = this.feature_index;
         result['split_value'] = this.split_value;
-        result['left_side'] = this.left_side.to_dict();
-        result['right_side'] = this.right_side.to_dict();
+        result['left_side'] = this.left_side.save();
+        result['right_side'] = this.right_side.save();
 
         return result;
+    }
+
+    /**
+     * This is a static function which loads from a structure which is JSON-able.
+     */
+    static load( data: {[key:string]:any}): BranchOrLeaf {
+        //first determine if what is passed in is a leaf or a branch.
+        if( data['left_side'] && data['right_side']){
+            const result = new TreeBranch();
+            result.feature_index = data['feature_index'];
+            result.split_value = data['split_value'];
+            result.left_side = TreeBranch.load(data['left_side']);
+            result.right_side = TreeBranch.load(data['right_side']);
+            return result;
+        }else{
+            return TreeLeaf.load(data);
+        }
     }
 
     predict_single( data: {[key: string]:number|string}, categorical_categories: string[]): number {
@@ -235,6 +264,31 @@ export class JLBoost {
         this.trees = [];
         this.learning_rate = learning_rate;
         this.categorical_categories = categorical_catagories;
+    }
+
+    /**
+     * This function saves the state of JLBoost to a structure which is JSON-able
+     * and can be loaded later using restore.
+     */
+    save(){
+        return {
+            trees: this.trees.map((tree) => {
+                return tree.save()
+            }),
+            learning_rate: this.learning_rate,
+            categorical_categories: this.categorical_categories,
+        };
+    }
+
+    /**
+     * This is a static function which loads from a structure which is JSON-able.
+     */
+    static load( data: {[key:string]:any}): JLBoost {
+        const result: JLBoost = new JLBoost({ learning_rate: parseFloat(data.learning_rate), categorical_catagories: (data.categorical_categories as string[]) });
+        result.trees = data.trees.map((tree) => {
+            return TreeBranch.load(tree)
+        });
+        return result;
     }
 
     predict(xy_data: {[key: string]: number|string}[] ): any {
@@ -454,6 +508,6 @@ function mulberry32(a) {
 //     console.table( with_prediction );
 
 //     //print first tree to screen.
-//     const first_tree_as_dict = model.trees[0].to_dict();
+//     const first_tree_as_dict = model.trees[0].save();
 //     console.log(JSON.stringify(first_tree_as_dict, null,2));
 // }
