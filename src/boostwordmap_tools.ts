@@ -71,6 +71,8 @@ export abstract class AbstractWordMapWrapper {
     constructor(opts?: {}) {
         //If opts.train_steps is not set, set it to 1000.
         if (!('train_steps' in opts)) opts["train_steps"] = 1000;
+        if (!('learning_rate' in opts)) opts["learning_rate"] = 0.7;
+        if (!('tree_depth' in opts)) opts["tree_depth"] = 5;
 
         this.wordMap = new WordMap(opts);
         this.engine = (this.wordMap as any).engine;
@@ -465,15 +467,14 @@ export class JLBoostWordMap extends BoostWordMap{
 
         
 
-        this.jlboost_model = new JLBoost({});
+        this.jlboost_model = new JLBoost({learning_rate: this.opts.learning_rate });
 
         return new Promise<void>((resolve) => {
             this.jlboost_model.train({
                 xy_data:training_data,
                 y_index:"output",
                 n_steps:this.opts.train_steps,
-                tree_depth:12,//7,
-                //tree_depth:2,
+                tree_depth:this.opts.tree_depth,
                 talk:true,
             });
             resolve();
@@ -966,16 +967,15 @@ export class MorphJLBoostWordMap extends BoostWordMap{
             .concat( incorrect_predictions.map( p => prediction_to_dict(p,false) ) );
 
         
-
-        this.jlboost_model = new JLBoost({ categorical_catagories: morph_code_catboost_cat_feature_order });
+            
+        this.jlboost_model = new JLBoost({ categorical_catagories: morph_code_catboost_cat_feature_order, learning_rate: this.opts.learning_rate });
 
         return new Promise<void>((resolve) => {
             this.jlboost_model.train({
                 xy_data:training_data,
                 y_index:"output",
                 n_steps:this.opts.train_steps,
-                tree_depth:12,//7,
-                //tree_depth:2,
+                tree_depth:this.opts.tree_depth,
                 talk:true,
             });
             resolve();
