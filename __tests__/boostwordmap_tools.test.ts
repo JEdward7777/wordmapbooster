@@ -1,5 +1,5 @@
 import WordMap from "wordmap/dist/WordMap";
-import { AbstractWordMapWrapper, JLBoostMultiWordMap, JLBoostMultiWordMap2, JLBoostWordMap, MorphJLBoostWordMap, PlaneWordMap } from "../src/boostwordmap_tools";
+import { AbstractWordMapWrapper, JLBoostWordMap, MorphJLBoostWordMap, PlaneWordMap } from "../src/boostwordmap_tools";
 import { Token } from "wordmap-lexer";
 import { Alignment, Ngram, Suggestion } from "wordmap";
 
@@ -63,8 +63,6 @@ describe('JLBoostWordMap', () => {
     const classesToTest = [
       PlaneWordMap,
       JLBoostWordMap,
-      JLBoostMultiWordMap,
-      JLBoostMultiWordMap2,
       MorphJLBoostWordMap,
     ]
 

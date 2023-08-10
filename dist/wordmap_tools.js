@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.grade_mapping_method = exports.is_part_of_correct_prediction = exports.is_correct_prediction = exports.word_map_predict_tokens = exports.convert_alignment_to_alignment_dict = exports.convert_tc_to_token_dict = exports.compile_verse_text_pair = exports.add_book_alignment_to_wordmap = exports.extract_alignment_frequency = exports.ChapterVerse = void 0;
+exports.grade_mapping_method = exports.is_part_of_correct_prediction = exports.is_correct_prediction = exports.token_to_hash = exports.word_map_predict_tokens = exports.convert_alignment_to_alignment_dict = exports.convert_tc_to_token_dict = exports.compile_verse_text_pair = exports.add_book_alignment_to_wordmap = exports.extract_alignment_frequency = exports.ChapterVerse = void 0;
 var wordmap_lexer_1 = require("wordmap-lexer");
 var wordmap_1 = require("wordmap");
 //import usfmjs from 'usfm-js';
@@ -215,6 +215,15 @@ function word_map_predict_tokens(m, from_tokens, to_tokens, maxSuggestions, minC
     return suggestions;
 }
 exports.word_map_predict_tokens = word_map_predict_tokens;
+/**
+ * Generates a string hash to represent a specific token so we can relate tokens with dictionaries.
+ * @param t The token to generate a hash for.
+ * @returns the hash of the token.
+ */
+function token_to_hash(t) {
+    return "".concat(t.toString(), ":").concat(t.occurrence, ":").concat(t.occurrences);
+}
+exports.token_to_hash = token_to_hash;
 function is_correct_prediction(suggested_mapping, manual_mappings) {
     mappingLoop: for (var manual_mapping_i = 0; manual_mapping_i < manual_mappings.length; ++manual_mapping_i) {
         var manual_mapping = manual_mappings[manual_mapping_i];

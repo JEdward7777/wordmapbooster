@@ -14,8 +14,19 @@ var __extends = (this && this.__extends) || (function () {
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
     };
 })();
+var __assign = (this && this.__assign) || function () {
+    __assign = Object.assign || function(t) {
+        for (var s, i = 1, n = arguments.length; i < n; i++) {
+            s = arguments[i];
+            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
+                t[p] = s[p];
+        }
+        return t;
+    };
+    return __assign.apply(this, arguments);
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MorphJLBoostWordMap = exports.JLBoostMultiWordMap2 = exports.JLBoostMultiWordMap = exports.JLBoostWordMap = exports.morph_code_prediction_to_feature_dict = exports.morph_code_catboost_cat_feature_order = exports.PlaneWordMap = exports.BoostWordMap = exports.AbstractWordMapWrapper = exports.catboost_feature_order = void 0;
+exports.MorphJLBoostWordMap = exports.JLBoostWordMap = exports.morph_code_prediction_to_feature_dict = exports.morph_code_catboost_cat_feature_order = exports.PlaneWordMap = exports.BoostWordMap = exports.AbstractWordMapWrapper = exports.catboost_feature_order = void 0;
 //import {WordMapProps} from "wordmap/core/WordMap"
 var wordmap_1 = require("wordmap");
 var wordmap_lexer_1 = require("wordmap-lexer");
@@ -46,11 +57,88 @@ exports.catboost_feature_order = [
     "uniqueness",
     "lemmaUniqueness",
 ];
+/**
+ * Hashes an alignment into a dictionary so connections can be looked up.
+ * @param sourceToTargetHash the hash that source to targets are hashed into
+ * @param targetToSourceHash the hash that targets to source are hashed into
+ * @param alignment the alignment to hash connections from.
+ */
+function addAlignmentToHashes(sourceToTargetHash, targetToSourceHash, alignment) {
+    for (var _i = 0, _a = alignment.sourceNgram.getTokens(); _i < _a.length; _i++) {
+        var sourceToken = _a[_i];
+        for (var _b = 0, _c = alignment.targetNgram.getTokens(); _b < _c.length; _b++) {
+            var targetToken = _c[_b];
+            var sourceHash = (0, wordmap_tools_1.token_to_hash)(sourceToken);
+            var targetHash = (0, wordmap_tools_1.token_to_hash)(targetToken);
+            if (!(sourceHash in sourceToTargetHash))
+                sourceToTargetHash[sourceHash] = [];
+            if (!(targetHash in targetToSourceHash))
+                targetToSourceHash[targetHash] = [];
+            sourceToTargetHash[sourceHash].push(targetHash);
+            targetToSourceHash[targetHash].push(sourceHash);
+        }
+    }
+}
 var AbstractWordMapWrapper = /** @class */ (function () {
     function AbstractWordMapWrapper(opts) {
+        //If opts.train_steps is not set, set it to 1000.
+        if (!('train_steps' in opts))
+            opts["train_steps"] = 1000;
+        if (!('learning_rate' in opts))
+            opts["learning_rate"] = 0.7;
+        if (!('tree_depth' in opts))
+            opts["tree_depth"] = 5;
         this.wordMap = new wordmap_1.default(opts);
         this.engine = this.wordMap.engine;
+        this.opts = opts;
     }
+    AbstractWordMapWrapper.load = function (data) {
+        //switch on the data.classType and load the appropriate class
+        var loaders = {
+            "PlaneWordMap": PlaneWordMap,
+            "JLBoostWordMap": JLBoostWordMap,
+            "MorphJLBoostWordMap": MorphJLBoostWordMap,
+        };
+        // First construct it and then call specificLoad on it.
+        var MapperConstructor = loaders[data.classType];
+        if (!MapperConstructor) {
+            throw new Error("Unknown classType: ".concat(data.classType));
+        }
+        var mapper = new MapperConstructor(data.opts);
+        mapper.specificLoad(data);
+        return mapper;
+    };
+    /**
+     * Saves the model to a json-able structure.
+     * @returns {Object}
+     */
+    AbstractWordMapWrapper.prototype.save = function () {
+        var result = {
+            "wordMap.engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index": Object.fromEntries(this.wordMap.engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index),
+            "wordMap.engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index": Object.fromEntries(this.wordMap.engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index),
+            "wordMap.engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index": Object.fromEntries(this.wordMap.engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index),
+            "opts": this.opts,
+        };
+        return result;
+    };
+    /**
+     * This is an abstract method which loads from a structure which is JSON-able.
+     * @param data - the data to load
+     */
+    AbstractWordMapWrapper.prototype.specificLoad = function (data) {
+        var _this = this;
+        //opts is handled in the constructor.
+        Object.entries(data['wordMap.engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index']).forEach(function (key_value) {
+            _this.wordMap.engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index.set(key_value[0], key_value[1]);
+        });
+        Object.entries(data['wordMap.engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index']).forEach(function (key_value) {
+            _this.wordMap.engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index.set(key_value[0], key_value[1]);
+        });
+        Object.entries(data['wordMap.engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index']).forEach(function (key_value) {
+            _this.wordMap.engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index.set(key_value[0], key_value[1]);
+        });
+        return this;
+    };
     /**
      * Appends alignment memory engine.
      * @param alignments - an alignment or array of alignments
@@ -65,8 +153,112 @@ var AbstractWordMapWrapper = /** @class */ (function () {
      * @param {number} maxSuggestions - the maximum number of suggestions to return
      * @return {Suggestion[]}
     */
-    AbstractWordMapWrapper.prototype.predict = function (sourceSentence, targetSentence, maxSuggestions) {
-        return this.wordMap.predict(sourceSentence, targetSentence, maxSuggestions);
+    AbstractWordMapWrapper.prototype.predict = function (sourceSentence, targetSentence, maxSuggestions, manuallyAligned) {
+        if (manuallyAligned === void 0) { manuallyAligned = []; }
+        var sourceTokens = [];
+        var targetTokens = [];
+        if (typeof sourceSentence === "string") {
+            sourceTokens = wordmap_lexer_1.default.tokenize(sourceSentence);
+        }
+        else {
+            sourceTokens = sourceSentence;
+        }
+        if (typeof targetSentence === "string") {
+            targetTokens = wordmap_lexer_1.default.tokenize(targetSentence);
+        }
+        else {
+            targetTokens = targetSentence;
+        }
+        var engine_run = this.engine.run(sourceTokens, targetTokens);
+        this.score_with_context(engine_run, manuallyAligned);
+        var predictions = wordmap_1.Engine.sortPredictions(engine_run);
+        //return Engine.suggest(predictions, maxSuggestions, (this as any).forceOccurrenceOrder, minConfidence);
+        //rolled back to wordmap version 0.6.0 which doesn't have the last two arguments.
+        return wordmap_1.Engine.suggest(predictions, maxSuggestions /*, (this as any).forceOccurrenceOrder, minConfidence*/);
+    };
+    /**
+     * The point of this function is for predictions to be made for verses which are already partially aligned.
+     * It is used by the predict method to apply the scores with context of the manual mappings.
+     * @param suggestedMappings The mappings which need to be graded
+     * @param manualMappings The partial mappings which the user has manually aligned.
+     */
+    AbstractWordMapWrapper.prototype.score_with_context = function (suggestedMappings, manualMappings) {
+        //hash the manualMappings so it is easier to look it up.
+        var manualMappingSourceToTargetHashes = {};
+        var manualMappingTargetToSourceHashes = {};
+        for (var _i = 0, manualMappings_1 = manualMappings; _i < manualMappings_1.length; _i++) {
+            var manualMapping = manualMappings_1[_i];
+            addAlignmentToHashes(manualMappingSourceToTargetHashes, manualMappingTargetToSourceHashes, manualMapping);
+        }
+        var suggestionsWhichNeedModelScore = [];
+        suggestingLoop: for (var suggestedMappingI = 0; suggestedMappingI < suggestedMappings.length; ++suggestedMappingI) {
+            var suggestedMapping = suggestedMappings[suggestedMappingI];
+            var suggestedMappingSourceToTargetHashes = {};
+            var suggestedMappingTargetToSourceHashes = {};
+            addAlignmentToHashes(suggestedMappingSourceToTargetHashes, suggestedMappingTargetToSourceHashes, suggestedMapping.alignment);
+            //now hash out this suggested mapping.
+            //go through every token in both sides of the suggestion,
+            //  go through every manual connection which includes this token,
+            //    if a connection is found which is not in the original suggestion then the original suggestion is incompatible.
+            for (var _a = 0, _b = Object.keys(suggestedMappingSourceToTargetHashes); _a < _b.length; _a++) {
+                var suggestionSourceTokenHash = _b[_a];
+                if (suggestionSourceTokenHash in manualMappingSourceToTargetHashes) {
+                    var suggestedMappingTargetHashes = suggestedMappingSourceToTargetHashes[suggestionSourceTokenHash];
+                    for (var _c = 0, _d = manualMappingSourceToTargetHashes[suggestionSourceTokenHash]; _c < _d.length; _c++) {
+                        var manualMappingTargetTokenHash = _d[_c];
+                        //if this connection doesn't exist in the suggestion, then the suggestion is breaking
+                        //connections which the user manually made and is not a valid suggestion.
+                        if (!suggestedMappingTargetHashes.includes(manualMappingTargetTokenHash)) {
+                            //This is an invalid suggestion so mark the confidence as 0.
+                            suggestedMapping.setScore("confidence", 0);
+                            continue suggestingLoop;
+                        }
+                    }
+                }
+            }
+            //now do that again the other way around.
+            for (var _e = 0, _f = Object.keys(suggestedMappingTargetToSourceHashes); _e < _f.length; _e++) {
+                var suggestionTargetTokenHash = _f[_e];
+                if (suggestionTargetTokenHash in manualMappingTargetToSourceHashes) {
+                    var suggestedMappingSourceHash = suggestedMappingTargetToSourceHashes[suggestionTargetTokenHash];
+                    for (var _g = 0, _h = manualMappingTargetToSourceHashes[suggestionTargetTokenHash]; _g < _h.length; _g++) {
+                        var manualMappingSourceTokenHash = _h[_g];
+                        //if this connection doesn't exist in the suggestion, then then suggestion is breaking
+                        //connections which the user manually made and is not a valid suggestion.
+                        if (!suggestedMappingSourceHash.includes(manualMappingSourceTokenHash)) {
+                            suggestedMapping.setScore("confidence", 0);
+                            continue suggestingLoop;
+                        }
+                    }
+                }
+            }
+            //now need to check if this suggestion if defined correct by manual mappings.
+            var isConnectionSubset = function (suggestedMappingAToB, manualMappingAToB) {
+                //Don't go for just an empty set, because then we prioritize null connections.
+                if (Object.keys(suggestedMappingAToB).length === 0)
+                    return false;
+                for (var _i = 0, _a = Object.entries(suggestedMappingAToB); _i < _a.length; _i++) {
+                    var _b = _a[_i], a = _b[0], suggestedBList = _b[1];
+                    if (!(a in manualMappingAToB))
+                        return false;
+                    var manualBList = manualMappingAToB[a];
+                    for (var _c = 0, suggestedBList_1 = suggestedBList; _c < suggestedBList_1.length; _c++) {
+                        var suggestedB = suggestedBList_1[_c];
+                        if (!(suggestedB in manualBList))
+                            return false;
+                    }
+                }
+                return true;
+            };
+            if (isConnectionSubset(suggestedMappingSourceToTargetHashes, suggestedMappingTargetToSourceHashes) &&
+                isConnectionSubset(manualMappingSourceToTargetHashes, manualMappingTargetToSourceHashes)) {
+                suggestedMapping.setScore("confidence", 1);
+                continue suggestingLoop;
+            }
+            //ok, if it isn't a manual no or yes, we need to actually use the predict and return the score for that.
+            suggestionsWhichNeedModelScore.push(suggestedMapping);
+        }
+        this.model_score(suggestionsWhichNeedModelScore);
     };
     return AbstractWordMapWrapper;
 }());
@@ -78,6 +270,23 @@ var BoostWordMap = /** @class */ (function (_super) {
         _this.ratio_of_training_data = 1; //The ratio of how much data to use so we can thin data.
         return _this;
     }
+    /**
+     * Saves the model to a json-able structure.
+     * @returns {Object}
+     */
+    BoostWordMap.prototype.save = function () {
+        var result = __assign(__assign({}, _super.prototype.save.call(this)), { "ratio_of_training_data": this.ratio_of_training_data });
+        return result;
+    };
+    /**
+     * This is an abstract method which loads from a structure which is JSON-able.
+     * @param data - the data to load
+     */
+    BoostWordMap.prototype.specificLoad = function (data) {
+        _super.prototype.specificLoad.call(this, data);
+        this.ratio_of_training_data = data["ratio_of_training_data"];
+        return this;
+    };
     BoostWordMap.prototype.setTrainingRatio = function (ratio_of_training_data) {
         this.ratio_of_training_data = ratio_of_training_data;
     };
@@ -172,37 +381,6 @@ var BoostWordMap = /** @class */ (function (_super) {
         var incorrect_predictions = incorrect_predictions_1.concat(incorrect_predictions_2);
         return this.do_boost_training(correct_predictions, incorrect_predictions);
     };
-    /**
-     * Predicts the word alignments between the sentences.
-     * @param {string} sourceSentence - a sentence from the source text
-     * @param {string} targetSentence - a sentence from the target text
-     * @param {number} maxSuggestions - the maximum number of suggestions to return
-     * @param minConfidence - the minimum confidence score required for a prediction to be used
-     * @return {Suggestion[]}
-     */
-    BoostWordMap.prototype.predict = function (sourceSentence, targetSentence, maxSuggestions, minConfidence) {
-        if (maxSuggestions === void 0) { maxSuggestions = 1; }
-        if (minConfidence === void 0) { minConfidence = 0.1; }
-        var sourceTokens = [];
-        var targetTokens = [];
-        if (typeof sourceSentence === "string") {
-            sourceTokens = wordmap_lexer_1.default.tokenize(sourceSentence);
-        }
-        else {
-            sourceTokens = sourceSentence;
-        }
-        if (typeof targetSentence === "string") {
-            targetTokens = wordmap_lexer_1.default.tokenize(targetSentence);
-        }
-        else {
-            targetTokens = targetSentence;
-        }
-        var engine_run = this.engine.run(sourceTokens, targetTokens);
-        var predictions = this.catboost_score(engine_run);
-        //return Engine.suggest(predictions, maxSuggestions, (this as any).forceOccurrenceOrder, minConfidence);
-        //rolled back to wordmap version 0.6.0 which doesn't have the last two arguments.
-        return wordmap_1.Engine.suggest(predictions, maxSuggestions /*, (this as any).forceOccurrenceOrder, minConfidence*/);
-    };
     return BoostWordMap;
 }(AbstractWordMapWrapper));
 exports.BoostWordMap = BoostWordMap;
@@ -214,6 +392,14 @@ var PlaneWordMap = /** @class */ (function (_super) {
         return _super !== null && _super.apply(this, arguments) || this;
     }
     PlaneWordMap.prototype.setTrainingRatio = function (ratio_of_training_data) { };
+    /**
+     * Saves the model to a json-able structure.
+     * @returns {Object}
+     */
+    PlaneWordMap.prototype.save = function () {
+        var result = __assign(__assign({}, _super.prototype.save.call(this)), { "classType": "PlaneWordMap" });
+        return result;
+    };
     PlaneWordMap.prototype.add_alignments_1 = function (source_text, target_text, alignments) {
         var _this = this;
         // In "plane" the different ways of adding are all the same.
@@ -236,6 +422,9 @@ var PlaneWordMap = /** @class */ (function (_super) {
     PlaneWordMap.prototype.do_boost_training = function (correct_predictions, incorrect_predictions) {
         //no boost type training in the plane word map.
         return Promise.resolve();
+    };
+    PlaneWordMap.prototype.model_score = function (predictions) {
+        this.engine.score(predictions);
     };
     return PlaneWordMap;
 }(AbstractWordMapWrapper));
@@ -298,13 +487,30 @@ var JLBoostWordMap = /** @class */ (function (_super) {
         _this.jlboost_model = null;
         return _this;
     }
-    JLBoostWordMap.prototype.catboost_score = function (predictions) {
+    /**
+     * Saves the model to a json-able structure.
+     * @returns {Object}
+     */
+    JLBoostWordMap.prototype.save = function () {
+        var _a;
+        var result = __assign(__assign({}, _super.prototype.save.call(this)), { "jlboost_model": (_a = this.jlboost_model) === null || _a === void 0 ? void 0 : _a.save(), "classType": "JLBoostWordMap" });
+        return result;
+    };
+    /**
+     * This is an abstract method which loads from a structure which is JSON-able.
+     * @param data - the data to load
+     */
+    JLBoostWordMap.prototype.specificLoad = function (data) {
+        _super.prototype.specificLoad.call(this, data);
+        this.jlboost_model = JLBoost_1.JLBoost.load(data.jlboost_model);
+        return this;
+    };
+    JLBoostWordMap.prototype.model_score = function (predictions) {
         for (var prediction_i = 0; prediction_i < predictions.length; ++prediction_i) {
             var numerical_features = jlboost_prediction_to_feature_dict(predictions[prediction_i]);
             var confidence = this.jlboost_model.predict_single(numerical_features);
             predictions[prediction_i].setScore("confidence", confidence);
         }
-        return wordmap_1.Engine.sortPredictions(predictions);
     };
     JLBoostWordMap.prototype.do_boost_training = function (correct_predictions, incorrect_predictions) {
         var _this = this;
@@ -330,14 +536,13 @@ var JLBoostWordMap = /** @class */ (function (_super) {
         };
         var training_data = correct_predictions.map(function (p) { return prediction_to_dict(p, true); })
             .concat(incorrect_predictions.map(function (p) { return prediction_to_dict(p, false); }));
-        this.jlboost_model = new JLBoost_1.JLBoost({});
+        this.jlboost_model = new JLBoost_1.JLBoost({ learning_rate: this.opts.learning_rate });
         return new Promise(function (resolve) {
             _this.jlboost_model.train({
                 xy_data: training_data,
                 y_index: "output",
-                n_steps: 1000,
-                tree_depth: 12,
-                //tree_depth:2,
+                n_steps: _this.opts.train_steps,
+                tree_depth: _this.opts.tree_depth,
                 talk: true,
             });
             resolve();
@@ -346,390 +551,6 @@ var JLBoostWordMap = /** @class */ (function (_super) {
     return JLBoostWordMap;
 }(BoostWordMap));
 exports.JLBoostWordMap = JLBoostWordMap;
-var JLBoostMultiWordMap = /** @class */ (function (_super) {
-    __extends(JLBoostMultiWordMap, _super);
-    function JLBoostMultiWordMap() {
-        return _super !== null && _super.apply(this, arguments) || this;
-    }
-    //collect_boost_training_data needs to not use is_correct_prediction but something like is_sub_correct_prediction
-    JLBoostMultiWordMap.prototype.collect_boost_training_data = function (source_text, target_text, alignments, ratio_of_incorrect_to_keep) {
-        var _this = this;
-        if (ratio_of_incorrect_to_keep === void 0) { ratio_of_incorrect_to_keep = .1; }
-        var correct_predictions = [];
-        var incorrect_predictions = [];
-        Object.entries(alignments).forEach(function (_a) {
-            var key = _a[0], verse_alignments = _a[1];
-            //collect every prediction
-            var every_prediction = _this.engine.run(source_text[key], target_text[key]);
-            //iterate through them
-            every_prediction.forEach(function (prediction) {
-                //figure out if the prediction is correct
-                //If the prediction is correct, include it, if it isn't randomly include it.
-                if (prediction.target.getTokens().length != 1 || prediction.source.getTokens().length != 1) {
-                    //Filter out ngrams greater then 1.
-                }
-                else if ((0, wordmap_tools_1.is_part_of_correct_prediction)(prediction, verse_alignments)) {
-                    correct_predictions.push(prediction);
-                }
-                else if (Math.random() < ratio_of_incorrect_to_keep * _this.ratio_of_training_data) {
-                    incorrect_predictions.push(prediction);
-                }
-            });
-        });
-        //return the collected data.
-        return [correct_predictions, incorrect_predictions];
-    };
-    //catboost_score needs to be changed to not just return what was given but instead assemble it into ngrams.
-    JLBoostMultiWordMap.prototype.catboost_score = function (predictions) {
-        var _this = this;
-        //first filter to just single token predictions.
-        var just_singles = predictions.filter(function (p) { return p.target.getTokens().length == 1 && p.source.getTokens().length == 1; });
-        //now run the set score on all of them.
-        just_singles.forEach(function (p) {
-            var numerical_features = jlboost_prediction_to_feature_dict(p);
-            var confidence = _this.jlboost_model.predict_single(numerical_features);
-            p.setScore("confidence", confidence);
-        });
-        return just_singles;
-    };
-    /**
- * Predicts the word alignments between the sentences.
- * @param {string} sourceSentence - a sentence from the source text
- * @param {string} targetSentence - a sentence from the target text
- * @param {number} maxSuggestions - the maximum number of suggestions to return
- * @param minConfidence - the minimum confidence score required for a prediction to be used
- * @return {Suggestion[]}
- */
-    JLBoostMultiWordMap.prototype.predict = function (sourceSentence, targetSentence, maxSuggestions, minConfidence) {
-        if (maxSuggestions === void 0) { maxSuggestions = 1; }
-        if (minConfidence === void 0) { minConfidence = 0.1; }
-        var sourceTokens = [];
-        var targetTokens = [];
-        if (typeof sourceSentence === "string") {
-            sourceTokens = wordmap_lexer_1.default.tokenize(sourceSentence);
-        }
-        else {
-            sourceTokens = sourceSentence;
-        }
-        if (typeof targetSentence === "string") {
-            targetTokens = wordmap_lexer_1.default.tokenize(targetSentence);
-        }
-        else {
-            targetTokens = targetSentence;
-        }
-        var engine_run = this.engine.run(sourceTokens, targetTokens);
-        var predictions = this.catboost_score(engine_run);
-        var ngram_predictions = create_ngram_predictions(predictions);
-        var suggestion = ngram_predictions.reduce(function (s, p) {
-            s.addPrediction(p);
-            return s;
-        }, new wordmap_1.Suggestion());
-        return [suggestion];
-    };
-    return JLBoostMultiWordMap;
-}(JLBoostWordMap));
-exports.JLBoostMultiWordMap = JLBoostMultiWordMap;
-//This version is the same as JLBoostMultiWordMap except that it includes the ngram output of wordmap
-//as extra information.
-var JLBoostMultiWordMap2 = /** @class */ (function (_super) {
-    __extends(JLBoostMultiWordMap2, _super);
-    function JLBoostMultiWordMap2() {
-        return _super !== null && _super.apply(this, arguments) || this;
-    }
-    //collect_boost_training_data needs to not use is_correct_prediction but something like is_sub_correct_prediction
-    JLBoostMultiWordMap2.prototype.collect_boost_training_data = function (source_text, target_text, alignments, ratio_of_incorrect_to_keep) {
-        var _this = this;
-        if (ratio_of_incorrect_to_keep === void 0) { ratio_of_incorrect_to_keep = .1; }
-        var correct_predictions = [];
-        var incorrect_predictions = [];
-        Object.entries(alignments).forEach(function (_a) {
-            var key = _a[0], verse_alignments = _a[1];
-            //collect every prediction
-            var every_prediction = _this.engine.run(source_text[key], target_text[key]);
-            //iterate through them
-            every_prediction.forEach(function (prediction) {
-                //Don't grade a null assignment as correct unless it is right.
-                //subset doesn't count.
-                var is_null_suggestion = (prediction.target.tokenLength === 0 || prediction.source.tokenLength === 0);
-                var is_correct = is_null_suggestion ?
-                    (0, wordmap_tools_1.is_correct_prediction)(prediction, verse_alignments) :
-                    (0, wordmap_tools_1.is_part_of_correct_prediction)(prediction, verse_alignments);
-                if (is_correct) {
-                    correct_predictions.push(prediction);
-                }
-                else if (Math.random() < ratio_of_incorrect_to_keep * _this.ratio_of_training_data) {
-                    incorrect_predictions.push(prediction);
-                }
-            });
-        });
-        //return the collected data.
-        return [correct_predictions, incorrect_predictions];
-    };
-    //catboost_score needs to be changed to not just return what was given but instead assemble it into ngrams.
-    JLBoostMultiWordMap2.prototype.catboost_score = function (predictions) {
-        var _this = this;
-        //now run the set score on all of them.
-        predictions.forEach(function (p) {
-            var numerical_features = jlboost_prediction_to_feature_dict(p);
-            var confidence = _this.jlboost_model.predict_single(numerical_features);
-            p.setScore("confidence", confidence);
-        });
-        return predictions;
-    };
-    /**
- * Predicts the word alignments between the sentences.
- * @param {string} sourceSentence - a sentence from the source text
- * @param {string} targetSentence - a sentence from the target text
- * @param {number} maxSuggestions - the maximum number of suggestions to return
- * @param minConfidence - the minimum confidence score required for a prediction to be used
- * @return {Suggestion[]}
- */
-    JLBoostMultiWordMap2.prototype.predict = function (sourceSentence, targetSentence, maxSuggestions, minConfidence) {
-        if (maxSuggestions === void 0) { maxSuggestions = 1; }
-        if (minConfidence === void 0) { minConfidence = 0.1; }
-        var sourceTokens = [];
-        var targetTokens = [];
-        if (typeof sourceSentence === "string") {
-            sourceTokens = wordmap_lexer_1.default.tokenize(sourceSentence);
-        }
-        else {
-            sourceTokens = sourceSentence;
-        }
-        if (typeof targetSentence === "string") {
-            targetTokens = wordmap_lexer_1.default.tokenize(targetSentence);
-        }
-        else {
-            targetTokens = targetSentence;
-        }
-        var engine_run = this.engine.run(sourceTokens, targetTokens);
-        var predictions = this.catboost_score(engine_run);
-        var ngram_predictions = create_ngram_predictions(predictions);
-        var suggestion = ngram_predictions.reduce(function (s, p) {
-            s.addPrediction(p);
-            return s;
-        }, new wordmap_1.Suggestion());
-        return [suggestion];
-    };
-    return JLBoostMultiWordMap2;
-}(JLBoostWordMap));
-exports.JLBoostMultiWordMap2 = JLBoostMultiWordMap2;
-var LinkGroup = /** @class */ (function () {
-    function LinkGroup() {
-        this.source_members = [];
-        this.target_members = [];
-        this.token_links = {};
-    }
-    LinkGroup.prototype.ngram_max_size = function () {
-        return Math.max(this.source_members.length, this.target_members.length);
-    };
-    LinkGroup.prototype.add_links = function (source, links) {
-        var _a;
-        if (!(source in this.source_members)) {
-            this.source_members.push(source);
-        }
-        for (var _i = 0, links_1 = links; _i < links_1.length; _i++) {
-            var link = links_1[_i];
-            if (!this.target_members.includes(link.target)) {
-                this.target_members.push(link.target);
-            }
-        }
-        if (!(source in this.token_links)) {
-            this.token_links[source] = [];
-        }
-        (_a = this.token_links[source]).push.apply(_a, links);
-    };
-    LinkGroup.prototype.split = function () {
-        //find whatever link is the weakest but isn't the last connection to 
-        //a node or source and then break it.
-        var source_link_counts = {};
-        var target_link_counts = {};
-        for (var _i = 0, _a = Object.entries(this.token_links); _i < _a.length; _i++) {
-            var _b = _a[_i], source = _b[0], links = _b[1];
-            for (var _c = 0, links_2 = links; _c < links_2.length; _c++) {
-                var link = links_2[_c];
-                source_link_counts[source] = 1 + (source_link_counts[source] || 0);
-                target_link_counts[link.target] = 1 + (target_link_counts[link.target] || 0);
-            }
-        }
-        //figure out what links if removed would not produce an unpaired word.
-        var expendable_links = {};
-        for (var _d = 0, _e = Object.entries(this.token_links); _d < _e.length; _d++) {
-            var _f = _e[_d], source = _f[0], links = _f[1];
-            if (source_link_counts[source] > 1) {
-                for (var _g = 0, links_3 = links; _g < links_3.length; _g++) {
-                    var link = links_3[_g];
-                    if (target_link_counts[link.target] > 1) {
-                        if (!(source in expendable_links)) {
-                            expendable_links[source] = [];
-                        }
-                        expendable_links[source].push(link);
-                    }
-                }
-            }
-        }
-        var weakest_source = null;
-        var weakest_target = null;
-        var weakest_strength = 0;
-        for (var _h = 0, _j = Object.entries(expendable_links); _h < _j.length; _h++) {
-            var _k = _j[_h], source = _k[0], links = _k[1];
-            for (var _l = 0, links_4 = links; _l < links_4.length; _l++) {
-                var link = links_4[_l];
-                if (weakest_source === null || link.strength < weakest_strength) {
-                    weakest_source = source;
-                    weakest_target = link.target;
-                    weakest_strength = link.strength;
-                }
-            }
-        }
-        var links_without_weakest = {};
-        for (var _m = 0, _o = Object.entries(this.token_links); _m < _o.length; _m++) {
-            var _p = _o[_m], source = _p[0], links = _p[1];
-            //if the source doesn't match or we have already broken a link, just copy all the links.
-            if (source !== weakest_source) {
-                links_without_weakest[source] = links;
-            }
-            else {
-                //if the source does match, drop the first link matching the selected strength.
-                links_without_weakest[source] = [];
-                for (var _q = 0, links_5 = links; _q < links_5.length; _q++) {
-                    var link = links_5[_q];
-                    if (link.strength != weakest_strength || link.target !== weakest_target) {
-                        links_without_weakest[source].push(link);
-                    }
-                }
-            }
-        }
-        //Don't worry if the group didn't actually get split, it is closer to being split.
-        return determine_groups(links_without_weakest);
-    };
-    return LinkGroup;
-}());
-function recursive_get_group_owner(group_owner, key) {
-    if (!(key in group_owner))
-        return key;
-    var owner = group_owner[key];
-    if (owner != key) {
-        owner = recursive_get_group_owner(group_owner, owner);
-        group_owner[key] = owner;
-    }
-    return owner;
-}
-function link_groups(group_owner, key1, key2) {
-    var owner1 = recursive_get_group_owner(group_owner, key1);
-    var owner2 = recursive_get_group_owner(group_owner, key2);
-    group_owner[owner1] = owner2;
-}
-function determine_groups(token_links) {
-    var link_valid_threshold = .5;
-    var group_owner = {};
-    for (var _i = 0, _a = Object.entries(token_links); _i < _a.length; _i++) {
-        var _b = _a[_i], source = _b[0], links = _b[1];
-        for (var _c = 0, links_6 = links; _c < links_6.length; _c++) {
-            var link = links_6[_c];
-            if (link.strength > link_valid_threshold) {
-                link_groups(group_owner, "s:".concat(source), "t:".concat(link.target));
-            }
-        }
-    }
-    var labeled_groups = {};
-    var _loop_1 = function (source, links) {
-        var group_name = recursive_get_group_owner(group_owner, "s:".concat(source));
-        var non_broken_links = links.filter(function (link) { return group_name == recursive_get_group_owner(group_owner, "t:".concat(link.target)); });
-        //now only make a group for this if it has any remaining links.
-        if (non_broken_links.length > 0) {
-            if (!(group_name in labeled_groups)) {
-                labeled_groups[group_name] = new LinkGroup();
-            }
-            //add all the links which stay in this group.  We have a link-valid_threshold and
-            //these need to be broken 
-            labeled_groups[group_name].add_links(source, non_broken_links);
-        }
-    };
-    for (var _d = 0, _e = Object.entries(token_links); _d < _e.length; _d++) {
-        var _f = _e[_d], source = _f[0], links = _f[1];
-        _loop_1(source, links);
-    }
-    return Object.values(labeled_groups);
-}
-function break_into_groups(token_links, max_ngram_size) {
-    if (max_ngram_size === void 0) { max_ngram_size = 4; }
-    var to_process = determine_groups(token_links);
-    var result = [];
-    //keep breaking apart the groups until they are all below ngram size of max_ngram_size
-    while (to_process.length > 0) {
-        var link_group = to_process.pop();
-        if (link_group.ngram_max_size() <= max_ngram_size || link_group.source_members.length < 2 || link_group.target_members.length < 2) {
-            result.push(link_group);
-        }
-        else {
-            to_process.push.apply(to_process, link_group.split());
-        }
-    }
-    return result;
-}
-function token_to_hash(t) {
-    return "".concat(t.toString(), ":").concat(t.occurrence, ":").concat(t.occurrences);
-}
-function dedup_hash_links(hash_links) {
-    var source_target_hashed = {};
-    Object.entries(hash_links).forEach(function (_a) {
-        var source = _a[0], links = _a[1];
-        links.forEach(function (link) {
-            var source_target_key = "".concat(source, "->").concat(link.target);
-            //take only the strongest link.
-            if (!(source_target_key in source_target_hashed) || source_target_hashed[source_target_key].strength < link.strength) {
-                source_target_hashed[source_target_key] = {
-                    source: source,
-                    strength: link.strength,
-                    target: link.target
-                };
-            }
-        });
-    });
-    //now convert the format back.
-    var result = {};
-    Object.values(source_target_hashed).forEach(function (link) {
-        if (!(link.source in result)) {
-            result[link.source] = [];
-        }
-        result[link.source].push({
-            strength: link.strength,
-            target: link.target
-        });
-    });
-    return result;
-}
-function create_ngram_predictions(scored_predictions) {
-    var source_token_hashes = {};
-    var target_token_hashes = {};
-    var token_hash_links_with_dupes = {};
-    scored_predictions.forEach(function (p) {
-        p.source.getTokens().forEach(function (t) { return source_token_hashes[token_to_hash(t)] = t; });
-        p.target.getTokens().forEach(function (t) { return target_token_hashes[token_to_hash(t)] = t; });
-        p.source.getTokens().forEach(function (source) {
-            p.target.getTokens().forEach(function (target) {
-                var source_hash = token_to_hash(source);
-                if (!(source_hash in token_hash_links_with_dupes)) {
-                    token_hash_links_with_dupes[source_hash] = [];
-                }
-                token_hash_links_with_dupes[source_hash].push({
-                    strength: p.getScore("confidence"),
-                    target: token_to_hash(target)
-                });
-            });
-        });
-    });
-    var token_hash_links_deduped = dedup_hash_links(token_hash_links_with_dupes);
-    var link_groups = break_into_groups(token_hash_links_deduped);
-    var result = [];
-    for (var _i = 0, link_groups_1 = link_groups; _i < link_groups_1.length; _i++) {
-        var link_group = link_groups_1[_i];
-        var source_tokens = link_group.source_members.map(function (token_hash) { return source_token_hashes[token_hash]; });
-        var target_tokens = link_group.target_members.map(function (token_hash) { return target_token_hashes[token_hash]; });
-        result.push(new wordmap_1.Prediction(new wordmap_1.Alignment(new wordmap_1.Ngram(source_tokens), new wordmap_1.Ngram(target_tokens))));
-    }
-    return result;
-}
 var MorphJLBoostWordMap = /** @class */ (function (_super) {
     __extends(MorphJLBoostWordMap, _super);
     function MorphJLBoostWordMap() {
@@ -737,13 +558,30 @@ var MorphJLBoostWordMap = /** @class */ (function (_super) {
         _this.jlboost_model = null;
         return _this;
     }
-    MorphJLBoostWordMap.prototype.catboost_score = function (predictions) {
+    /**
+     * Saves the model to a json-able structure.
+     * @returns {Object}
+     */
+    MorphJLBoostWordMap.prototype.save = function () {
+        var _a;
+        var result = __assign(__assign({}, _super.prototype.save.call(this)), { "jlboost_model": (_a = this.jlboost_model) === null || _a === void 0 ? void 0 : _a.save(), "classType": "MorphJLBoostWordMap" });
+        return result;
+    };
+    /**
+     * This is an abstract method which loads from a structure which is JSON-able.
+     * @param data - the data to load
+     */
+    MorphJLBoostWordMap.prototype.specificLoad = function (data) {
+        _super.prototype.specificLoad.call(this, data);
+        this.jlboost_model = JLBoost_1.JLBoost.load(data.jlboost_model);
+        return this;
+    };
+    MorphJLBoostWordMap.prototype.model_score = function (predictions) {
         for (var prediction_i = 0; prediction_i < predictions.length; ++prediction_i) {
             var numerical_features = morph_code_prediction_to_feature_dict(predictions[prediction_i]);
             var confidence = this.jlboost_model.predict_single(numerical_features);
             predictions[prediction_i].setScore("confidence", confidence);
         }
-        return wordmap_1.Engine.sortPredictions(predictions);
     };
     MorphJLBoostWordMap.prototype.do_boost_training = function (correct_predictions, incorrect_predictions) {
         var _this = this;
@@ -755,14 +593,13 @@ var MorphJLBoostWordMap = /** @class */ (function (_super) {
         };
         var training_data = correct_predictions.map(function (p) { return prediction_to_dict(p, true); })
             .concat(incorrect_predictions.map(function (p) { return prediction_to_dict(p, false); }));
-        this.jlboost_model = new JLBoost_1.JLBoost({ categorical_catagories: exports.morph_code_catboost_cat_feature_order });
+        this.jlboost_model = new JLBoost_1.JLBoost({ categorical_catagories: exports.morph_code_catboost_cat_feature_order, learning_rate: this.opts.learning_rate });
         return new Promise(function (resolve) {
             _this.jlboost_model.train({
                 xy_data: training_data,
                 y_index: "output",
-                n_steps: 1000,
-                tree_depth: 12,
-                //tree_depth:2,
+                n_steps: _this.opts.train_steps,
+                tree_depth: _this.opts.tree_depth,
                 talk: true,
             });
             resolve();

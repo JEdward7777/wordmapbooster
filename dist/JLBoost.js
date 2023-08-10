@@ -58,8 +58,14 @@ var TreeLeaf = /** @class */ (function (_super) {
         var _this = this;
         return __spreadArray([], Array(xy_data.length), true).map(function () { return _this.average; });
     };
-    TreeLeaf.prototype.to_dict = function () {
+    TreeLeaf.prototype.save = function () {
         return { 'average': this.average };
+    };
+    /**
+    * This is a static function which loads from a structure which is JSON-able.
+    */
+    TreeLeaf.load = function (data) {
+        return new TreeLeaf(data['average']);
     };
     return TreeLeaf;
 }(BranchOrLeaf));
@@ -75,13 +81,35 @@ var TreeBranch = /** @class */ (function (_super) {
         _this.split_value = null;
         return _this;
     }
-    TreeBranch.prototype.to_dict = function () {
+    /**
+     * Saves the current state of the object as a key-value pair object.
+     *
+     * @return {{[key:string]:any}} The key-value pair object representing the state of the object.
+     */
+    TreeBranch.prototype.save = function () {
         var result = {};
         result['feature_index'] = this.feature_index;
         result['split_value'] = this.split_value;
-        result['left_side'] = this.left_side.to_dict();
-        result['right_side'] = this.right_side.to_dict();
+        result['left_side'] = this.left_side.save();
+        result['right_side'] = this.right_side.save();
         return result;
+    };
+    /**
+     * This is a static function which loads from a structure which is JSON-able.
+     */
+    TreeBranch.load = function (data) {
+        //first determine if what is passed in is a leaf or a branch.
+        if (data['left_side'] && data['right_side']) {
+            var result = new TreeBranch();
+            result.feature_index = data['feature_index'];
+            result.split_value = data['split_value'];
+            result.left_side = TreeBranch.load(data['left_side']);
+            result.right_side = TreeBranch.load(data['right_side']);
+            return result;
+        }
+        else {
+            return TreeLeaf.load(data);
+        }
     };
     TreeBranch.prototype.predict_single = function (data, categorical_categories) {
         var follow_left_side = false;
@@ -219,6 +247,29 @@ var JLBoost = /** @class */ (function () {
         this.learning_rate = learning_rate;
         this.categorical_categories = categorical_catagories;
     }
+    /**
+     * This function saves the state of JLBoost to a structure which is JSON-able
+     * and can be loaded later using restore.
+     */
+    JLBoost.prototype.save = function () {
+        return {
+            trees: this.trees.map(function (tree) {
+                return tree.save();
+            }),
+            learning_rate: this.learning_rate,
+            categorical_categories: this.categorical_categories,
+        };
+    };
+    /**
+     * This is a static function which loads from a structure which is JSON-able.
+     */
+    JLBoost.load = function (data) {
+        var result = new JLBoost({ learning_rate: parseFloat(data.learning_rate), categorical_catagories: data.categorical_categories });
+        result.trees = data.trees.map(function (tree) {
+            return TreeBranch.load(tree);
+        });
+        return result;
+    };
     JLBoost.prototype.predict = function (xy_data) {
         var _this = this;
         var output = Array(xy_data.length).fill(0);
@@ -417,7 +468,7 @@ function mulberry32(a) {
 //     });
 //     console.table( with_prediction );
 //     //print first tree to screen.
-//     const first_tree_as_dict = model.trees[0].to_dict();
+//     const first_tree_as_dict = model.trees[0].save();
 //     console.log(JSON.stringify(first_tree_as_dict, null,2));
 // }
 //# sourceMappingURL=JLBoost.js.map

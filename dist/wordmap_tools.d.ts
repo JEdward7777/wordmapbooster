@@ -44,6 +44,12 @@ export declare function convert_alignment_to_alignment_dict(book_id: string, ali
     [key: string]: Alignment[];
 };
 export declare function word_map_predict_tokens(m: WordMap, from_tokens: Token[], to_tokens: Token[], maxSuggestions?: number, minConfidence?: number): Suggestion[];
+/**
+ * Generates a string hash to represent a specific token so we can relate tokens with dictionaries.
+ * @param t The token to generate a hash for.
+ * @returns the hash of the token.
+ */
+export declare function token_to_hash(t: Token): string;
 export declare function is_correct_prediction(suggested_mapping: Prediction, manual_mappings: Alignment[]): boolean;
 export declare function is_part_of_correct_prediction(suggested_mapping: Prediction, manual_mappings: Alignment[]): boolean;
 export declare function grade_mapping_method(source_sentence_tokens_dict: {

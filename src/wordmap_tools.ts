@@ -224,6 +224,18 @@ export function word_map_predict_tokens( m: WordMap, from_tokens: Token[], to_to
     return suggestions;
 }
 
+/**
+ * Generates a string hash to represent a specific token so we can relate tokens with dictionaries.
+ * @param t The token to generate a hash for.
+ * @returns the hash of the token.
+ */
+export function token_to_hash(t : Token): string{
+    return `${t.toString()}:${t.occurrence}:${t.occurrences}`;
+}
+
+
+
+
 export function is_correct_prediction( suggested_mapping: Prediction, manual_mappings: Alignment[] ): boolean{
 
     mappingLoop: for( let manual_mapping_i = 0; manual_mapping_i < manual_mappings.length; ++manual_mapping_i ){

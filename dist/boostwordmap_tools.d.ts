@@ -1,11 +1,27 @@
-import { Alignment, Suggestion, Prediction, Engine } from 'wordmap';
+import WordMap, { Alignment, Suggestion, Prediction, Engine } from 'wordmap';
 import { Token } from "wordmap-lexer";
 import { JLBoost } from "./JLBoost";
 export declare const catboost_feature_order: string[];
 export declare abstract class AbstractWordMapWrapper {
-    private wordMap;
+    protected wordMap: WordMap;
     engine: Engine;
+    protected opts: any;
+    static load(data: {
+        [key: string]: any;
+    }): AbstractWordMapWrapper;
     constructor(opts?: {});
+    /**
+     * Saves the model to a json-able structure.
+     * @returns {Object}
+     */
+    save(): {
+        [key: string]: any;
+    };
+    /**
+     * This is an abstract method which loads from a structure which is JSON-able.
+     * @param data - the data to load
+     */
+    specificLoad(data: any): AbstractWordMapWrapper;
     /**
      * Appends alignment memory engine.
      * @param alignments - an alignment or array of alignments
@@ -18,12 +34,35 @@ export declare abstract class AbstractWordMapWrapper {
      * @param {number} maxSuggestions - the maximum number of suggestions to return
      * @return {Suggestion[]}
     */
-    predict(sourceSentence: string | Token[], targetSentence: string | Token[], maxSuggestions?: number): Suggestion[];
+    predict(sourceSentence: string | Token[], targetSentence: string | Token[], maxSuggestions?: number, manuallyAligned?: Alignment[]): Suggestion[];
+    /**
+     * This is overridden by the different models to grade predictions in their own way.
+     * @param predictions the predictions which will get a score put in them.
+     */
+    protected abstract model_score(predictions: Prediction[]): void;
+    /**
+     * The point of this function is for predictions to be made for verses which are already partially aligned.
+     * It is used by the predict method to apply the scores with context of the manual mappings.
+     * @param suggestedMappings The mappings which need to be graded
+     * @param manualMappings The partial mappings which the user has manually aligned.
+     */
+    protected score_with_context(suggestedMappings: Prediction[], manualMappings: Alignment[]): void;
 }
 export declare abstract class BoostWordMap extends AbstractWordMapWrapper {
     protected ratio_of_training_data: number;
+    /**
+     * Saves the model to a json-able structure.
+     * @returns {Object}
+     */
+    save(): {
+        [key: string]: any;
+    };
+    /**
+     * This is an abstract method which loads from a structure which is JSON-able.
+     * @param data - the data to load
+     */
+    specificLoad(data: any): AbstractWordMapWrapper;
     setTrainingRatio(ratio_of_training_data: number): void;
-    abstract catboost_score(predictions: Prediction[]): Prediction[];
     collect_boost_training_data(source_text: {
         [key: string]: Token[];
     }, target_text: {
@@ -60,18 +99,16 @@ export declare abstract class BoostWordMap extends AbstractWordMapWrapper {
     }, alignments: {
         [key: string]: Alignment[];
     }): Promise<void>;
-    /**
-     * Predicts the word alignments between the sentences.
-     * @param {string} sourceSentence - a sentence from the source text
-     * @param {string} targetSentence - a sentence from the target text
-     * @param {number} maxSuggestions - the maximum number of suggestions to return
-     * @param minConfidence - the minimum confidence score required for a prediction to be used
-     * @return {Suggestion[]}
-     */
-    predict(sourceSentence: string | Token[], targetSentence: string | Token[], maxSuggestions?: number, minConfidence?: number): Suggestion[];
 }
 export declare class PlaneWordMap extends AbstractWordMapWrapper {
     setTrainingRatio(ratio_of_training_data: number): void;
+    /**
+     * Saves the model to a json-able structure.
+     * @returns {Object}
+     */
+    save(): {
+        [key: string]: any;
+    };
     add_alignments_1(source_text: {
         [key: string]: Token[];
     }, target_text: {
@@ -101,6 +138,7 @@ export declare class PlaneWordMap extends AbstractWordMapWrapper {
         [key: string]: Alignment[];
     }): Promise<void>;
     do_boost_training(correct_predictions: Prediction[], incorrect_predictions: Prediction[]): Promise<void>;
+    protected model_score(predictions: Prediction[]): void;
 }
 export declare const morph_code_catboost_cat_feature_order: string[];
 /**
@@ -114,49 +152,35 @@ export declare function morph_code_prediction_to_feature_dict(prediction: Predic
 };
 export declare class JLBoostWordMap extends BoostWordMap {
     protected jlboost_model: JLBoost | null;
-    catboost_score(predictions: Prediction[]): Prediction[];
+    /**
+     * Saves the model to a json-able structure.
+     * @returns {Object}
+     */
+    save(): {
+        [key: string]: any;
+    };
+    /**
+     * This is an abstract method which loads from a structure which is JSON-able.
+     * @param data - the data to load
+     */
+    specificLoad(data: any): AbstractWordMapWrapper;
+    model_score(predictions: Prediction[]): void;
     do_boost_training(correct_predictions: Prediction[], incorrect_predictions: Prediction[]): Promise<void>;
-}
-export declare class JLBoostMultiWordMap extends JLBoostWordMap {
-    collect_boost_training_data(source_text: {
-        [key: string]: Token[];
-    }, target_text: {
-        [key: string]: Token[];
-    }, alignments: {
-        [key: string]: Alignment[];
-    }, ratio_of_incorrect_to_keep?: number): [Prediction[], Prediction[]];
-    catboost_score(predictions: Prediction[]): Prediction[];
-    /**
- * Predicts the word alignments between the sentences.
- * @param {string} sourceSentence - a sentence from the source text
- * @param {string} targetSentence - a sentence from the target text
- * @param {number} maxSuggestions - the maximum number of suggestions to return
- * @param minConfidence - the minimum confidence score required for a prediction to be used
- * @return {Suggestion[]}
- */
-    predict(sourceSentence: string | Token[], targetSentence: string | Token[], maxSuggestions?: number, minConfidence?: number): Suggestion[];
-}
-export declare class JLBoostMultiWordMap2 extends JLBoostWordMap {
-    collect_boost_training_data(source_text: {
-        [key: string]: Token[];
-    }, target_text: {
-        [key: string]: Token[];
-    }, alignments: {
-        [key: string]: Alignment[];
-    }, ratio_of_incorrect_to_keep?: number): [Prediction[], Prediction[]];
-    catboost_score(predictions: Prediction[]): Prediction[];
-    /**
- * Predicts the word alignments between the sentences.
- * @param {string} sourceSentence - a sentence from the source text
- * @param {string} targetSentence - a sentence from the target text
- * @param {number} maxSuggestions - the maximum number of suggestions to return
- * @param minConfidence - the minimum confidence score required for a prediction to be used
- * @return {Suggestion[]}
- */
-    predict(sourceSentence: string | Token[], targetSentence: string | Token[], maxSuggestions?: number, minConfidence?: number): Suggestion[];
 }
 export declare class MorphJLBoostWordMap extends BoostWordMap {
     protected jlboost_model: JLBoost | null;
-    catboost_score(predictions: Prediction[]): Prediction[];
+    /**
+     * Saves the model to a json-able structure.
+     * @returns {Object}
+     */
+    save(): {
+        [key: string]: any;
+    };
+    /**
+     * This is an abstract method which loads from a structure which is JSON-able.
+     * @param data - the data to load
+     */
+    specificLoad(data: any): AbstractWordMapWrapper;
+    model_score(predictions: Prediction[]): void;
     do_boost_training(correct_predictions: Prediction[], incorrect_predictions: Prediction[]): Promise<void>;
 }

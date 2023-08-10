@@ -1,7 +1,7 @@
 //import {WordMapProps} from "wordmap/core/WordMap"
 import WordMap, { Alignment, Ngram, Suggestion, Prediction, Engine } from 'wordmap';
 import Lexer,{Token} from "wordmap-lexer";
-import {is_correct_prediction, is_part_of_correct_prediction} from "./wordmap_tools"; 
+import {is_correct_prediction, is_part_of_correct_prediction, token_to_hash} from "./wordmap_tools"; 
 import {JLBoost} from "./JLBoost";
 
 
@@ -32,6 +32,24 @@ export const catboost_feature_order : string[] = [
 ];
 
 
+/**
+ * Hashes an alignment into a dictionary so connections can be looked up.
+ * @param sourceToTargetHash the hash that source to targets are hashed into
+ * @param targetToSourceHash the hash that targets to source are hashed into
+ * @param alignment the alignment to hash connections from.
+ */
+function addAlignmentToHashes( sourceToTargetHash: {[key: string]: string[] }, targetToSourceHash: {[key: string]: string[] }, alignment: Alignment ){
+    for( const sourceToken of alignment.sourceNgram.getTokens() ){
+        for( const targetToken of alignment.targetNgram.getTokens() ){
+            const sourceHash = token_to_hash( sourceToken );
+            const targetHash = token_to_hash( targetToken );
+            if( !(sourceHash in sourceToTargetHash) ) sourceToTargetHash[sourceHash] = [];
+            if( !(targetHash in targetToSourceHash) ) targetToSourceHash[targetHash] = [];
+            sourceToTargetHash[sourceHash].push( targetHash );
+            targetToSourceHash[targetHash].push( sourceHash );
+        }
+    }
+}
 
 export abstract class AbstractWordMapWrapper {
 
@@ -39,7 +57,7 @@ export abstract class AbstractWordMapWrapper {
     //bug which was insisting that super be called with new
     //made me just decide to make WordMap a member var.
 
-    private wordMap: WordMap;
+    protected wordMap: WordMap;
     public engine: Engine; //a convenience alias to inside wordMap.
     protected opts: any; //constructor arguments so we can save it out.
 
@@ -48,8 +66,6 @@ export abstract class AbstractWordMapWrapper {
         const loaders = {
             "PlaneWordMap": PlaneWordMap,
             "JLBoostWordMap": JLBoostWordMap,
-            "JLBoostMultiWordMap": JLBoostMultiWordMap,
-            "JLBoostMultiWordMap2": JLBoostMultiWordMap2,
             "MorphJLBoostWordMap": MorphJLBoostWordMap,
         };
 
@@ -120,6 +136,7 @@ export abstract class AbstractWordMapWrapper {
         this.wordMap.appendAlignmentMemory(alignments);
     }
 
+    
     /**
      * Predicts the word alignments between the sentences.
      * @param {string} sourceSentence - a sentence from the source text
@@ -127,11 +144,123 @@ export abstract class AbstractWordMapWrapper {
      * @param {number} maxSuggestions - the maximum number of suggestions to return
      * @return {Suggestion[]}
     */
-    predict(sourceSentence: string | Token[], targetSentence: string | Token[], maxSuggestions?: number): Suggestion[]{
-        return this.wordMap.predict(sourceSentence, targetSentence, maxSuggestions);
+    predict(sourceSentence: string | Token[], targetSentence: string | Token[], maxSuggestions?: number, manuallyAligned: Alignment[] = []): Suggestion[]{
+        let sourceTokens = [];
+        let targetTokens = [];
+
+        if (typeof sourceSentence === "string") {
+            sourceTokens = Lexer.tokenize(sourceSentence);
+        } else {
+            sourceTokens = sourceSentence;
+        }
+
+        if (typeof targetSentence === "string") {
+            targetTokens = Lexer.tokenize(targetSentence);
+        } else {
+            targetTokens = targetSentence;
+        }
+
+        const engine_run = (this as any).engine.run(sourceTokens, targetTokens);
+        this.score_with_context( engine_run, manuallyAligned );
+        const predictions = Engine.sortPredictions(engine_run);
+        //return Engine.suggest(predictions, maxSuggestions, (this as any).forceOccurrenceOrder, minConfidence);
+        //rolled back to wordmap version 0.6.0 which doesn't have the last two arguments.
+        return Engine.suggest(predictions, maxSuggestions/*, (this as any).forceOccurrenceOrder, minConfidence*/);
     }
+    
+
+    /**
+     * This is overridden by the different models to grade predictions in their own way.
+     * @param predictions the predictions which will get a score put in them.
+     */
+    protected abstract model_score( predictions: Prediction[]): void;
 
 
+    /**
+     * The point of this function is for predictions to be made for verses which are already partially aligned.
+     * It is used by the predict method to apply the scores with context of the manual mappings.
+     * @param suggestedMappings The mappings which need to be graded
+     * @param manualMappings The partial mappings which the user has manually aligned.
+     */
+    protected score_with_context( suggestedMappings: Prediction[], manualMappings: Alignment[] ){
+
+        //hash the manualMappings so it is easier to look it up.
+        const manualMappingSourceToTargetHashes: { [key: string]: string[] } = {};
+        const manualMappingTargetToSourceHashes: { [key: string]: string[] } = {};
+        for( const manualMapping of manualMappings ){
+            addAlignmentToHashes( manualMappingSourceToTargetHashes, manualMappingTargetToSourceHashes, manualMapping );
+        }
+
+        const suggestionsWhichNeedModelScore: Prediction[] = [];
+
+        suggestingLoop: for( let suggestedMappingI = 0; suggestedMappingI < suggestedMappings.length; ++suggestedMappingI ){
+            const suggestedMapping = suggestedMappings[suggestedMappingI];
+
+            const suggestedMappingSourceToTargetHashes: { [key: string]: string[] } = {};
+            const suggestedMappingTargetToSourceHashes: { [key: string]: string[] } = {};
+            addAlignmentToHashes( suggestedMappingSourceToTargetHashes, suggestedMappingTargetToSourceHashes, suggestedMapping.alignment );
+
+            //now hash out this suggested mapping.
+
+            //go through every token in both sides of the suggestion,
+            //  go through every manual connection which includes this token,
+            //    if a connection is found which is not in the original suggestion then the original suggestion is incompatible.
+            for( const suggestionSourceTokenHash of Object.keys(suggestedMappingSourceToTargetHashes) ){
+                if( suggestionSourceTokenHash in manualMappingSourceToTargetHashes ){
+                    const suggestedMappingTargetHashes = suggestedMappingSourceToTargetHashes[suggestionSourceTokenHash];
+                    for( const manualMappingTargetTokenHash of manualMappingSourceToTargetHashes[suggestionSourceTokenHash] ){
+                        //if this connection doesn't exist in the suggestion, then the suggestion is breaking
+                        //connections which the user manually made and is not a valid suggestion.
+                        if( !suggestedMappingTargetHashes.includes( manualMappingTargetTokenHash ) ){
+                            //This is an invalid suggestion so mark the confidence as 0.
+                            suggestedMapping.setScore("confidence", 0 );
+                            continue suggestingLoop;
+                        }
+                    }
+                }
+            }
+
+            //now do that again the other way around.
+            for( const suggestionTargetTokenHash of Object.keys( suggestedMappingTargetToSourceHashes) ){
+                if( suggestionTargetTokenHash in manualMappingTargetToSourceHashes ){
+                    const suggestedMappingSourceHash = suggestedMappingTargetToSourceHashes[suggestionTargetTokenHash];
+                    for( const manualMappingSourceTokenHash of manualMappingTargetToSourceHashes[suggestionTargetTokenHash] ){
+                        //if this connection doesn't exist in the suggestion, then then suggestion is breaking
+                        //connections which the user manually made and is not a valid suggestion.
+                        if( !suggestedMappingSourceHash.includes( manualMappingSourceTokenHash ) ){
+                            suggestedMapping.setScore("confidence", 0 );
+                            continue suggestingLoop;
+                        }
+                    }
+                }
+            }
+
+            //now need to check if this suggestion if defined correct by manual mappings.
+            const isConnectionSubset = (suggestedMappingAToB: { [key: string]: string[] }, manualMappingAToB: { [key: string]: string[] } ): boolean => {
+                //Don't go for just an empty set, because then we prioritize null connections.
+                if( Object.keys(suggestedMappingAToB).length === 0 ) return false;
+                for( const [a,suggestedBList] of Object.entries(suggestedMappingAToB) ){
+                    if( !(a in manualMappingAToB) ) return false;
+                    const manualBList = manualMappingAToB[a];
+                    for( const suggestedB of suggestedBList ){
+                        if( !(suggestedB in manualBList) ) return false;
+                    }
+                }
+                return true;  
+            }
+            if( isConnectionSubset( suggestedMappingSourceToTargetHashes, suggestedMappingTargetToSourceHashes ) &&
+                isConnectionSubset( manualMappingSourceToTargetHashes, manualMappingTargetToSourceHashes ) ){
+                suggestedMapping.setScore("confidence", 1 );
+                continue suggestingLoop;
+            }
+
+
+            //ok, if it isn't a manual no or yes, we need to actually use the predict and return the score for that.
+            suggestionsWhichNeedModelScore.push( suggestedMapping );
+        }
+
+        this.model_score( suggestionsWhichNeedModelScore );
+    }
 }
 
 export abstract class BoostWordMap extends AbstractWordMapWrapper{
@@ -163,7 +292,7 @@ export abstract class BoostWordMap extends AbstractWordMapWrapper{
         this.ratio_of_training_data = ratio_of_training_data;
     }
 
-    abstract catboost_score( predictions: Prediction[]): Prediction[];
+    
 
     collect_boost_training_data( source_text: {[key: string]: Token[]}, 
             target_text: {[key: string]: Token[]}, 
@@ -272,39 +401,6 @@ export abstract class BoostWordMap extends AbstractWordMapWrapper{
 
         return this.do_boost_training(correct_predictions, incorrect_predictions);
     }
-
-
-    
-    /**
-     * Predicts the word alignments between the sentences.
-     * @param {string} sourceSentence - a sentence from the source text
-     * @param {string} targetSentence - a sentence from the target text
-     * @param {number} maxSuggestions - the maximum number of suggestions to return
-     * @param minConfidence - the minimum confidence score required for a prediction to be used
-     * @return {Suggestion[]}
-     */
-    public predict(sourceSentence: string | Token[], targetSentence: string | Token[], maxSuggestions: number = 1, minConfidence: number = 0.1): Suggestion[] {
-        let sourceTokens = [];
-        let targetTokens = [];
-
-        if (typeof sourceSentence === "string") {
-            sourceTokens = Lexer.tokenize(sourceSentence);
-        } else {
-            sourceTokens = sourceSentence;
-        }
-
-        if (typeof targetSentence === "string") {
-            targetTokens = Lexer.tokenize(targetSentence);
-        } else {
-            targetTokens = targetSentence;
-        }
-
-        const engine_run = (this as any).engine.run(sourceTokens, targetTokens);
-        const predictions = this.catboost_score( engine_run );
-        //return Engine.suggest(predictions, maxSuggestions, (this as any).forceOccurrenceOrder, minConfidence);
-        //rolled back to wordmap version 0.6.0 which doesn't have the last two arguments.
-        return Engine.suggest(predictions, maxSuggestions/*, (this as any).forceOccurrenceOrder, minConfidence*/);
-    }
 }
 
 //The point of this class is to make a way of interacting with WordMap
@@ -342,6 +438,11 @@ export class PlaneWordMap extends AbstractWordMapWrapper{
     do_boost_training( correct_predictions: Prediction[], incorrect_predictions: Prediction[] ): Promise<void>{
         //no boost type training in the plane word map.
         return Promise.resolve();
+    }
+
+
+    protected model_score(predictions: Prediction[]): void {
+        this.engine.score(predictions);
     }
 }
 
@@ -433,13 +534,12 @@ export class JLBoostWordMap extends BoostWordMap{
         return this;
     }
 
-    catboost_score( predictions: Prediction[]): Prediction[] { 
+    model_score( predictions: Prediction[]): void{ 
         for( let prediction_i = 0; prediction_i < predictions.length; ++prediction_i ){
             const numerical_features = jlboost_prediction_to_feature_dict(predictions[prediction_i]);
             const confidence = this.jlboost_model.predict_single( numerical_features );
             predictions[prediction_i].setScore("confidence", confidence);
         }
-        return Engine.sortPredictions(predictions);
     }
 
     do_boost_training( correct_predictions: Prediction[], incorrect_predictions: Prediction[] ): Promise<void>{
@@ -483,441 +583,6 @@ export class JLBoostWordMap extends BoostWordMap{
 }
 
 
-export class JLBoostMultiWordMap extends JLBoostWordMap{
-
-    /**
-     * Saves the model to a json-able structure.
-     * @returns {Object}
-     */
-    save(): { [key: string]: any } {
-        const result = {...super.save(),
-            "classType": "JLBoostMultiWordMap"
-        };
-        return result;
-    }
-
-
-    //collect_boost_training_data needs to not use is_correct_prediction but something like is_sub_correct_prediction
-    collect_boost_training_data( source_text: {[key: string]: Token[]}, 
-        target_text: {[key: string]: Token[]}, 
-        alignments: {[key: string]: Alignment[] }, 
-        ratio_of_incorrect_to_keep: number = .1 ): [Prediction[], Prediction[]] {
-            const correct_predictions: Prediction[] = [];
-            const incorrect_predictions: Prediction[] = [];
-            
-            Object.entries( alignments ).forEach( ([key,verse_alignments]) => {
-                //collect every prediction
-            const every_prediction: Prediction[] = (this as any).engine.run( source_text[key], target_text[key] )
-
-            //iterate through them
-            every_prediction.forEach( (prediction: Prediction) => {
-                //figure out if the prediction is correct
-                //If the prediction is correct, include it, if it isn't randomly include it.
-                if( prediction.target.getTokens().length != 1 || prediction.source.getTokens().length != 1 ){
-                    //Filter out ngrams greater then 1.
-                }else if( is_part_of_correct_prediction( prediction, verse_alignments ) ){
-                    correct_predictions.push( prediction );
-                }else if( Math.random() < ratio_of_incorrect_to_keep*this.ratio_of_training_data ){
-                    incorrect_predictions.push( prediction );
-                }
-            });
-
-        });
-        
-        //return the collected data.
-        return [correct_predictions, incorrect_predictions];
-    }
-    
-    //catboost_score needs to be changed to not just return what was given but instead assemble it into ngrams.
-    catboost_score( predictions: Prediction[]): Prediction[] { 
-        //first filter to just single token predictions.
-        const just_singles = predictions.filter( (p: Prediction) => p.target.getTokens().length == 1 && p.source.getTokens().length == 1 );
-
-        //now run the set score on all of them.
-        just_singles.forEach( (p: Prediction) => {
-            const numerical_features = jlboost_prediction_to_feature_dict(p);
-            const confidence = this.jlboost_model.predict_single( numerical_features );
-            p.setScore("confidence", confidence);
-        });
-
-        return just_singles;
-    }
-
-
-        /**
-     * Predicts the word alignments between the sentences.
-     * @param {string} sourceSentence - a sentence from the source text
-     * @param {string} targetSentence - a sentence from the target text
-     * @param {number} maxSuggestions - the maximum number of suggestions to return
-     * @param minConfidence - the minimum confidence score required for a prediction to be used
-     * @return {Suggestion[]}
-     */
-    public predict(sourceSentence: string | Token[], targetSentence: string | Token[], maxSuggestions: number = 1, minConfidence: number = 0.1): Suggestion[] {
-        let sourceTokens = [];
-        let targetTokens = [];
-
-        if (typeof sourceSentence === "string") {
-            sourceTokens = Lexer.tokenize(sourceSentence);
-        } else {
-            sourceTokens = sourceSentence;
-        }
-
-        if (typeof targetSentence === "string") {
-            targetTokens = Lexer.tokenize(targetSentence);
-        } else {
-            targetTokens = targetSentence;
-        }
-
-        const engine_run = (this as any).engine.run(sourceTokens, targetTokens);
-        const predictions = this.catboost_score( engine_run );
-        const ngram_predictions = create_ngram_predictions( predictions );
-
-        const suggestion = ngram_predictions.reduce( (s:Suggestion, p:Prediction) => {
-            s.addPrediction(p);
-            return s;
-        }, new Suggestion() );
-
-        return [suggestion];
-    }
-}
-
-//This version is the same as JLBoostMultiWordMap except that it includes the ngram output of wordmap
-//as extra information.
-export class JLBoostMultiWordMap2 extends JLBoostWordMap{
-
-
-    /**
-     * Saves the model to a json-able structure.
-     * @returns {Object}
-     */
-    save(): { [key: string]: any } {
-        const result = {...super.save(),
-            "classType": "JLBoostMultiWordMap2"
-        };
-        return result;
-    }
-
-
-    //collect_boost_training_data needs to not use is_correct_prediction but something like is_sub_correct_prediction
-    collect_boost_training_data( source_text: {[key: string]: Token[]}, 
-        target_text: {[key: string]: Token[]}, 
-        alignments: {[key: string]: Alignment[] }, 
-        ratio_of_incorrect_to_keep: number = .1 ): [Prediction[], Prediction[]] {
-            const correct_predictions: Prediction[] = [];
-            const incorrect_predictions: Prediction[] = [];
-            
-            Object.entries( alignments ).forEach( ([key,verse_alignments]) => {
-                //collect every prediction
-            const every_prediction: Prediction[] = (this as any).engine.run( source_text[key], target_text[key] )
-
-            //iterate through them
-            every_prediction.forEach( (prediction: Prediction) => {
-
-                //Don't grade a null assignment as correct unless it is right.
-                //subset doesn't count.
-                const is_null_suggestion = (prediction.target.tokenLength === 0 || prediction.source.tokenLength === 0 );
-
-                let is_correct = is_null_suggestion?
-                        is_correct_prediction(prediction,verse_alignments):
-                        is_part_of_correct_prediction(prediction,verse_alignments);
-
-                if( is_correct ){
-                    correct_predictions.push( prediction );
-                }else if( Math.random() < ratio_of_incorrect_to_keep*this.ratio_of_training_data ){
-                    incorrect_predictions.push( prediction );
-                }
-            });
-
-        });
-        
-        //return the collected data.
-        return [correct_predictions, incorrect_predictions];
-    }
-    
-    //catboost_score needs to be changed to not just return what was given but instead assemble it into ngrams.
-    catboost_score( predictions: Prediction[]): Prediction[] { 
-        //now run the set score on all of them.
-        predictions.forEach( (p: Prediction) => {
-            const numerical_features = jlboost_prediction_to_feature_dict(p);
-            const confidence = this.jlboost_model.predict_single( numerical_features );
-            p.setScore("confidence", confidence);
-        });
-
-        return predictions;
-    }
-
-
-    /**
-     * Predicts the word alignments between the sentences.
-     * @param {string} sourceSentence - a sentence from the source text
-     * @param {string} targetSentence - a sentence from the target text
-     * @param {number} maxSuggestions - the maximum number of suggestions to return
-     * @param minConfidence - the minimum confidence score required for a prediction to be used
-     * @return {Suggestion[]}
-     */
-    public predict(sourceSentence: string | Token[], targetSentence: string | Token[], maxSuggestions: number = 1, minConfidence: number = 0.1): Suggestion[] {
-        let sourceTokens = [];
-        let targetTokens = [];
-
-        if (typeof sourceSentence === "string") {
-            sourceTokens = Lexer.tokenize(sourceSentence);
-        } else {
-            sourceTokens = sourceSentence;
-        }
-
-        if (typeof targetSentence === "string") {
-            targetTokens = Lexer.tokenize(targetSentence);
-        } else {
-            targetTokens = targetSentence;
-        }
-
-        const engine_run = (this as any).engine.run(sourceTokens, targetTokens);
-        const predictions = this.catboost_score( engine_run );
-        const ngram_predictions = create_ngram_predictions( predictions );
-
-        const suggestion = ngram_predictions.reduce( (s:Suggestion, p:Prediction) => {
-            s.addPrediction(p);
-            return s;
-        }, new Suggestion() );
-
-        return [suggestion];
-    }
-}
-
-
-
-class LinkGroup{
-    source_members: string[] = [];
-    target_members: string[] = [];
-    token_links: {[key: string]: { strength: number, target: string}[]} = {};
-
-    ngram_max_size(): number{
-        return Math.max(this.source_members.length,this.target_members.length);
-    }
-
-    add_links( source: string, links:{strength:number,target:string}[] ):void{
-        if( !(source in this.source_members) ){
-            this.source_members.push( source );
-        }
-        for( const link of links ){
-            if( !this.target_members.includes(link.target) ){
-                this.target_members.push( link.target );
-            }
-        }
-        if( !(source in this.token_links) ){
-            this.token_links[source] = [];
-        }
-        this.token_links[source].push(...links);
-    }
-
-    split(): LinkGroup[]{
-        //find whatever link is the weakest but isn't the last connection to 
-        //a node or source and then break it.
-        const source_link_counts: {[key:string]:number} = {};
-        const target_link_counts: {[key:string]:number} = {};
-
-        for( const [source, links] of Object.entries(this.token_links) ){
-            for( const link of links ){
-                source_link_counts[source]      = 1+(source_link_counts[source]      || 0)
-                target_link_counts[link.target] = 1+(target_link_counts[link.target] || 0)
-            }
-        }
-
-        //figure out what links if removed would not produce an unpaired word.
-        const expendable_links : {[key:string]:{strength:number,target:string}[]} = {};
-        for( const [source, links] of Object.entries(this.token_links) ){
-            if( source_link_counts[source] > 1 ){
-                for( const link of links ){
-                    if( target_link_counts[link.target] > 1 ){
-                        if(!(source in expendable_links)){
-                            expendable_links[source] = [];
-                        }
-                        expendable_links[source].push(link);
-                    }
-                }
-            }
-        }
-
-        let weakest_source : string | null = null;
-        let weakest_target : string | null = null;
-        let weakest_strength : number = 0;
-        for( const [source, links] of Object.entries(expendable_links) ){
-            for( const link of links ){
-                if( weakest_source === null || link.strength < weakest_strength ){
-                    weakest_source = source;
-                    weakest_target = link.target;
-                    weakest_strength = link.strength;
-                }
-            }
-        }
-
-        const links_without_weakest : {[key:string]:{strength:number,target:string}[]} = {};
-        for( const [source, links] of Object.entries(this.token_links) ){
-            //if the source doesn't match or we have already broken a link, just copy all the links.
-            if( source !== weakest_source  ){
-                links_without_weakest[source] = links;
-            }else{
-                //if the source does match, drop the first link matching the selected strength.
-                links_without_weakest[source] = [];
-                for( const link of links ){
-                    if( link.strength != weakest_strength || link.target !== weakest_target ){
-                        links_without_weakest[source].push( link )
-                    }
-                }
-            }
-        }
-
-        //Don't worry if the group didn't actually get split, it is closer to being split.
-        return determine_groups( links_without_weakest );
-    }
-}
-
-function recursive_get_group_owner( group_owner: {[key:string]: string}, key: string ): string{
-    if( !(key in group_owner) ) return key;
-    let owner = group_owner[key];
-    if( owner != key ){
-        owner = recursive_get_group_owner( group_owner, owner );
-        group_owner[key] = owner;
-    }
-    return owner;
-}
-
-function link_groups( group_owner: {[key:string]: string}, key1: string, key2: string ): void{
-    const owner1 = recursive_get_group_owner( group_owner, key1 );
-    const owner2 = recursive_get_group_owner( group_owner, key2 );
-    group_owner[owner1] = owner2;
-}
-
-function determine_groups( token_links: {[key: string]: { strength: number, target: string}[]} ): LinkGroup[]{
-    const link_valid_threshold = .5;
-
-    const group_owner: {[key:string]: string} = {};
-
-    for( const [source,links] of Object.entries( token_links )){
-        for(const link of links ){
-            if( link.strength > link_valid_threshold ){
-                link_groups(group_owner, `s:${source}`, `t:${link.target}`);
-            }
-        }
-    }
-
-    const labeled_groups: {[key:string]: LinkGroup} = {};
-
-    for( const [source,links] of Object.entries( token_links )){
-        const group_name = recursive_get_group_owner( group_owner, `s:${source}` );
-
-        const non_broken_links = links.filter( (link) => group_name == recursive_get_group_owner(group_owner, `t:${link.target}`) );
-
-        //now only make a group for this if it has any remaining links.
-        if( non_broken_links.length > 0 ){
-            if(!(group_name in labeled_groups)){
-                labeled_groups[group_name] = new LinkGroup();
-            }
-
-            //add all the links which stay in this group.  We have a link-valid_threshold and
-            //these need to be broken 
-            labeled_groups[group_name].add_links( source, non_broken_links );
-        }
-    }
-
-    return Object.values( labeled_groups );
-}
-
-function break_into_groups( token_links: {[key: string]: { strength: number, target: string}[]}, max_ngram_size=4  ):LinkGroup[]{
-    let to_process :LinkGroup[] = determine_groups(token_links);
-
-    let result :LinkGroup[] = [];
-
-    //keep breaking apart the groups until they are all below ngram size of max_ngram_size
-    while( to_process.length > 0 ){
-        const link_group = to_process.pop();
-        if( link_group.ngram_max_size() <= max_ngram_size || link_group.source_members.length < 2 || link_group.target_members.length < 2 ){
-            result.push( link_group );
-        }else{
-            to_process.push( ...link_group.split());
-        }
-    }
-    return result;
-}
-
-function token_to_hash(t : Token): string{
-    return `${t.toString()}:${t.occurrence}:${t.occurrences}`;
-}
-
-function dedup_hash_links( hash_links: {[key: string]: { strength: number, target: string}[]} ): {[key: string]: { strength: number, target: string}[]} {
-
-    const source_target_hashed: {[key: string]: { source: string, strength: number, target: string}} = {};
-
-    Object.entries( hash_links ).forEach( ([source,links]) => {
-        links.forEach( (link) => {
-            const source_target_key = `${source}->${link.target}`;
-            //take only the strongest link.
-            if( !(source_target_key in source_target_hashed) || source_target_hashed[source_target_key].strength < link.strength ){
-                source_target_hashed[source_target_key] = {
-                    source: source,
-                    strength: link.strength,
-                    target: link.target
-                };
-            }
-        });
-    });
-
-    //now convert the format back.
-    const result: {[key: string]: { strength: number, target: string}[]} = {};
-    Object.values( source_target_hashed ).forEach( (link) => {
-        if( !(link.source in result) ){
-            result[link.source] = [];
-        }
-        result[link.source].push({
-            strength: link.strength,
-            target: link.target
-        });
-    });
-
-    return result;
-}
-
-function create_ngram_predictions( scored_predictions: Prediction[] ): Prediction[]{
-    
-
-    const source_token_hashes: {[key: string]: Token} = {};
-    const target_token_hashes: {[key: string]: Token} = {};
-
-    const token_hash_links_with_dupes: {[key: string]: { strength: number, target: string}[]} = {};
-    scored_predictions.forEach( (p: Prediction) => {
-        p.source.getTokens().forEach( (t: Token) => source_token_hashes[token_to_hash(t)] = t );
-        p.target.getTokens().forEach( (t: Token) => target_token_hashes[token_to_hash(t)] = t );
-        p.source.getTokens().forEach( (source: Token) => {
-            p.target.getTokens().forEach( (target: Token) => {
-                const source_hash = token_to_hash(source);
-                if(!(source_hash in token_hash_links_with_dupes)){
-                    token_hash_links_with_dupes[source_hash]=[];
-                }
-                token_hash_links_with_dupes[source_hash].push({
-                    strength: p.getScore("confidence"),
-                    target: token_to_hash(target)
-                });
-            });
-        });
-    });
-
-    const token_hash_links_deduped = dedup_hash_links( token_hash_links_with_dupes );
-
-
-    const link_groups = break_into_groups( token_hash_links_deduped );
-
-
-    const result: Prediction[] = [];
-    for( const link_group of link_groups ){
-        const source_tokens: Token[] = link_group.source_members.map( (token_hash) => source_token_hashes[token_hash] );
-        const target_tokens: Token[] = link_group.target_members.map( (token_hash) => target_token_hashes[token_hash] );
-
-        result.push( new Prediction( new Alignment( new Ngram( source_tokens ), new Ngram( target_tokens ))));
-    }
-
-    return result;
-}
-
 export class MorphJLBoostWordMap extends BoostWordMap{
     protected jlboost_model: JLBoost | null = null;
 
@@ -945,13 +610,12 @@ export class MorphJLBoostWordMap extends BoostWordMap{
     }
 
 
-    catboost_score( predictions: Prediction[]): Prediction[] { 
+    model_score( predictions: Prediction[]):void{ 
         for( let prediction_i = 0; prediction_i < predictions.length; ++prediction_i ){
             const numerical_features = morph_code_prediction_to_feature_dict(predictions[prediction_i]);
             const confidence = this.jlboost_model.predict_single( numerical_features );
             predictions[prediction_i].setScore("confidence", confidence);
         }
-        return Engine.sortPredictions(predictions);
     }
 
     do_boost_training( correct_predictions: Prediction[], incorrect_predictions: Prediction[] ): Promise<void>{
