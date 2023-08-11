@@ -236,20 +236,20 @@ export abstract class AbstractWordMapWrapper {
             }
 
             //now need to check if this suggestion if defined correct by manual mappings.
-            const isConnectionSubset = (suggestedMappingAToB: { [key: string]: string[] }, manualMappingAToB: { [key: string]: string[] } ): boolean => {
+            const isConnectionSubsetAndNotNullConnection = (suggestedMappingAToB: { [key: string]: string[] }, manualMappingAToB: { [key: string]: string[] } ): boolean => {
                 //Don't go for just an empty set, because then we prioritize null connections.
                 if( Object.keys(suggestedMappingAToB).length === 0 ) return false;
                 for( const [a,suggestedBList] of Object.entries(suggestedMappingAToB) ){
                     if( !(a in manualMappingAToB) ) return false;
                     const manualBList = manualMappingAToB[a];
                     for( const suggestedB of suggestedBList ){
-                        if( !(suggestedB in manualBList) ) return false;
+                        if( !manualBList.includes(suggestedB) ) return false;
                     }
                 }
                 return true;  
             }
-            if( isConnectionSubset( suggestedMappingSourceToTargetHashes, suggestedMappingTargetToSourceHashes ) &&
-                isConnectionSubset( manualMappingSourceToTargetHashes, manualMappingTargetToSourceHashes ) ){
+            if( isConnectionSubsetAndNotNullConnection( suggestedMappingTargetToSourceHashes, manualMappingTargetToSourceHashes ) &&
+                isConnectionSubsetAndNotNullConnection( suggestedMappingSourceToTargetHashes, manualMappingSourceToTargetHashes ) ){
                 suggestedMapping.setScore("confidence", 1 );
                 continue suggestingLoop;
             }

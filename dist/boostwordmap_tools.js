@@ -233,7 +233,7 @@ var AbstractWordMapWrapper = /** @class */ (function () {
                 }
             }
             //now need to check if this suggestion if defined correct by manual mappings.
-            var isConnectionSubset = function (suggestedMappingAToB, manualMappingAToB) {
+            var isConnectionSubsetAndNotNullConnection = function (suggestedMappingAToB, manualMappingAToB) {
                 //Don't go for just an empty set, because then we prioritize null connections.
                 if (Object.keys(suggestedMappingAToB).length === 0)
                     return false;
@@ -244,14 +244,14 @@ var AbstractWordMapWrapper = /** @class */ (function () {
                     var manualBList = manualMappingAToB[a];
                     for (var _c = 0, suggestedBList_1 = suggestedBList; _c < suggestedBList_1.length; _c++) {
                         var suggestedB = suggestedBList_1[_c];
-                        if (!(suggestedB in manualBList))
+                        if (!manualBList.includes(suggestedB))
                             return false;
                     }
                 }
                 return true;
             };
-            if (isConnectionSubset(suggestedMappingSourceToTargetHashes, suggestedMappingTargetToSourceHashes) &&
-                isConnectionSubset(manualMappingSourceToTargetHashes, manualMappingTargetToSourceHashes)) {
+            if (isConnectionSubsetAndNotNullConnection(suggestedMappingTargetToSourceHashes, manualMappingTargetToSourceHashes) &&
+                isConnectionSubsetAndNotNullConnection(suggestedMappingSourceToTargetHashes, manualMappingSourceToTargetHashes)) {
                 suggestedMapping.setScore("confidence", 1);
                 continue suggestingLoop;
             }
