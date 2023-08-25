@@ -248,11 +248,18 @@ export abstract class AbstractWordMapWrapper {
                 }
                 return true;  
             }
-            if( isConnectionSubsetAndNotNullConnection( suggestedMappingTargetToSourceHashes, manualMappingTargetToSourceHashes ) &&
-                isConnectionSubsetAndNotNullConnection( suggestedMappingSourceToTargetHashes, manualMappingSourceToTargetHashes ) ){
-                suggestedMapping.setScore("confidence", 1 );
-                continue suggestingLoop;
-            }
+
+            //Checking if the suggestion is already aligned by the user and setting the confidence to 1 gives an unintended side effect.
+            //If there is an ngram and the user has only added one word of the ngram then that gives the single word an unfair advantage.
+            //The ngram will get graded and given a score like .7 while the single word will get a score of 1.  So just marking the
+            //incompatible connections with zero is good enough to make the engine produce predictions which are compatible with what
+            //the user has manually aligned.
+
+            // if( isConnectionSubsetAndNotNullConnection( suggestedMappingTargetToSourceHashes, manualMappingTargetToSourceHashes ) &&
+            //     isConnectionSubsetAndNotNullConnection( suggestedMappingSourceToTargetHashes, manualMappingSourceToTargetHashes ) ){
+            //     suggestedMapping.setScore("confidence", 1 );
+            //     continue suggestingLoop;
+            // }
 
 
             //ok, if it isn't a manual no or yes, we need to actually use the predict and return the score for that.
