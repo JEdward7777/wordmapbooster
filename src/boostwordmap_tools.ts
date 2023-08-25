@@ -3,6 +3,7 @@ import WordMap, { Alignment, Ngram, Suggestion, Prediction, Engine } from 'wordm
 import Lexer,{Token} from "wordmap-lexer";
 import {is_correct_prediction, is_part_of_correct_prediction, token_to_hash} from "./wordmap_tools"; 
 import {JLBoost} from "./JLBoost";
+import { shuffleArray } from './misc_tools';
 
 
 export const catboost_feature_order : string[] = [
@@ -304,11 +305,24 @@ export abstract class BoostWordMap extends AbstractWordMapWrapper{
     collect_boost_training_data( source_text: {[key: string]: Token[]}, 
             target_text: {[key: string]: Token[]}, 
             alignments: {[key: string]: Alignment[] }, 
-            ratio_of_incorrect_to_keep: number = .1 ): [Prediction[], Prediction[]] {
+            ratio_of_incorrect_to_keep: number = .1,
+            target_max_alignments: number = 1000 ): [Prediction[], Prediction[]] {
         const correct_predictions: Prediction[] = [];
         const incorrect_predictions: Prediction[] = [];
 
-        Object.entries( alignments ).forEach( ([key,verse_alignments]) => {
+        //if we have too many alignments it takes too long to spin through them.  So if we have mor then target_max_alignments
+        //we will decimate it down to that amount
+        if( Object.keys( alignments ).length > target_max_alignments ){
+            //shuffle the alignments and then take the first target_max_alignments
+            const alignmentsAsArray = Object.entries( alignments );
+            //randomize using shuffle function
+            shuffleArray(alignmentsAsArray);
+            
+            //take the first target_max_alignments
+            alignments = Object.fromEntries(alignmentsAsArray.slice(0,target_max_alignments));
+        }
+
+        Object.entries( alignments ).forEach( ([key,verse_alignments], alignment_i) => {
             //collect every prediction
             const every_prediction: Prediction[] = (this as any).engine.run( source_text[key], target_text[key] )
 

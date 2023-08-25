@@ -69,7 +69,7 @@ export declare abstract class BoostWordMap extends AbstractWordMapWrapper {
         [key: string]: Token[];
     }, alignments: {
         [key: string]: Alignment[];
-    }, ratio_of_incorrect_to_keep?: number): [Prediction[], Prediction[]];
+    }, ratio_of_incorrect_to_keep?: number, target_max_alignments?: number): [Prediction[], Prediction[]];
     abstract do_boost_training(correct_predictions: Prediction[], incorrect_predictions: Prediction[]): Promise<void>;
     add_alignments_1(source_text: {
         [key: string]: Token[];

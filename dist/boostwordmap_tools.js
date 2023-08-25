@@ -32,6 +32,7 @@ var wordmap_1 = require("wordmap");
 var wordmap_lexer_1 = require("wordmap-lexer");
 var wordmap_tools_1 = require("./wordmap_tools");
 var JLBoost_1 = require("./JLBoost");
+var misc_tools_1 = require("./misc_tools");
 exports.catboost_feature_order = [
     "sourceCorpusPermutationsFrequencyRatio",
     "targetCorpusPermutationsFrequencyRatio",
@@ -295,12 +296,23 @@ var BoostWordMap = /** @class */ (function (_super) {
     BoostWordMap.prototype.setTrainingRatio = function (ratio_of_training_data) {
         this.ratio_of_training_data = ratio_of_training_data;
     };
-    BoostWordMap.prototype.collect_boost_training_data = function (source_text, target_text, alignments, ratio_of_incorrect_to_keep) {
+    BoostWordMap.prototype.collect_boost_training_data = function (source_text, target_text, alignments, ratio_of_incorrect_to_keep, target_max_alignments) {
         var _this = this;
         if (ratio_of_incorrect_to_keep === void 0) { ratio_of_incorrect_to_keep = .1; }
+        if (target_max_alignments === void 0) { target_max_alignments = 1000; }
         var correct_predictions = [];
         var incorrect_predictions = [];
-        Object.entries(alignments).forEach(function (_a) {
+        //if we have too many alignments it takes too long to spin through them.  So if we have mor then target_max_alignments
+        //we will decimate it down to that amount
+        if (Object.keys(alignments).length > target_max_alignments) {
+            //shuffle the alignments and then take the first target_max_alignments
+            var alignmentsAsArray = Object.entries(alignments);
+            //randomize using shuffle function
+            (0, misc_tools_1.shuffleArray)(alignmentsAsArray);
+            //take the first target_max_alignments
+            alignments = Object.fromEntries(alignmentsAsArray.slice(0, target_max_alignments));
+        }
+        Object.entries(alignments).forEach(function (_a, alignment_i) {
             var key = _a[0], verse_alignments = _a[1];
             //collect every prediction
             var every_prediction = _this.engine.run(source_text[key], target_text[key]);
