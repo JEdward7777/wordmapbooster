@@ -85,4 +85,102 @@ describe('JLBoostWordMap', () => {
     }
 
   })
+
+
+  test('Same results after saving and loading, including corpus', async () => {
+
+    const loadedVerses = require('./__fixtures__/tenVerses.json');
+
+    const splitPoint = Math.round(.7*Object.keys(loadedVerses.source_text).length);
+
+    const alignmentReferences = Object.keys(loadedVerses.source_text).slice(0,splitPoint);
+    const corpusReferences = Object.keys(loadedVerses.source_text).slice(splitPoint);
+
+    const sourceText: { [key: string]: Token[] } = Object.fromEntries(
+      alignmentReferences.map((verseKey) => {
+          const verseTokens = loadedVerses.source_text[verseKey];
+          const result: [string, Token[]] = [
+            verseKey,
+            verseTokens.map(verseToken => new Token(verseToken))
+          ];
+          return result;
+        }
+      )
+    );
+    const targetText: { [key: string]: Token[] } = Object.fromEntries(
+      alignmentReferences.map((verseKey) => {
+          const verseTokens = loadedVerses.target_text[verseKey];
+           const result: [string, Token[]] = [
+             verseKey,
+             verseTokens.map(verseToken => new Token(verseToken))
+           ];
+           return result;
+         }
+      )
+    )
+
+    const alignments: { [key: string]: Alignment[] } = Object.fromEntries(
+      alignmentReferences.map((verseKey) => {
+          const verseAlignments = loadedVerses.alignments[verseKey];
+          const result: [string, Alignment[]] = [
+            verseKey,
+            verseAlignments.map(verseAlignment => new Alignment(
+              new Ngram(verseAlignment.sourceNgram.map(token => new Token(token))),
+              new Ngram(verseAlignment.targetNgram.map(token => new Token(token)))
+            ))
+           ];
+          return result;
+        }
+      )
+    )
+
+    const corpusSourceText: { [key: string]: Token[] } = Object.fromEntries(
+      corpusReferences.map((verseKey) => {
+          const verseTokens = loadedVerses.source_text[verseKey];
+          const result: [string, Token[]] = [
+            verseKey,
+            verseTokens.map(verseToken => new Token(verseToken))
+          ];
+          return result;
+        }
+      )
+    );
+    const corpusTargetText: { [key: string]: Token[] } = Object.fromEntries(
+      corpusReferences.map((verseKey) => {
+          const verseTokens = loadedVerses.target_text[verseKey];
+           const result: [string, Token[]] = [
+             verseKey,
+             verseTokens.map(verseToken => new Token(verseToken))
+           ];
+           return result;
+         }
+      )
+    ) 
+
+    const classesToTest = [
+      PlaneWordMap,
+      JLBoostWordMap,
+      MorphJLBoostWordMap,
+    ]
+
+    for (const classToTest of classesToTest) {
+      const jlBoostWordMap = new classToTest({ targetNgramLength: 5, warnings: false, forceOccurrenceOrder:false, train_steps:100 });
+      jlBoostWordMap.appendKeyedCorpusTokens( corpusSourceText, corpusTargetText );
+      await jlBoostWordMap.add_alignments_2( sourceText, targetText, alignments);
+
+      const savedToJson = JSON.stringify(jlBoostWordMap.save());
+      const loadedFromJson = AbstractWordMapWrapper.load(JSON.parse(savedToJson));
+
+      const firstVerseKey = Object.keys( sourceText )[0]
+      const firstSourceVerse = sourceText[firstVerseKey];
+      const firstTargetVerse = targetText[firstVerseKey];
+
+      //now make sure that the before and after produce the same predictions.
+      const predictionsBefore: Suggestion[] = jlBoostWordMap.predict( firstSourceVerse, firstTargetVerse );
+      const predictionsAfter:  Suggestion[] = loadedFromJson.predict( firstSourceVerse, firstTargetVerse );
+
+      expect( predictionsBefore ).toStrictEqual( predictionsAfter );
+    }
+
+  })
 });

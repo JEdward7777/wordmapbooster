@@ -27,6 +27,12 @@ export declare abstract class AbstractWordMapWrapper {
      * @param alignments - an alignment or array of alignments
      */
     appendAlignmentMemory(alignments: Alignment | Alignment[]): void;
+    appendCorpusTokens(sourceTokens: Token[][], targetTokens: Token[][]): void;
+    appendKeyedCorpusTokens(sourceTokens: {
+        [key: string]: Token[];
+    }, targetTokens: {
+        [key: string]: Token[];
+    }): void;
     /**
      * Predicts the word alignments between the sentences.
      * @param {string} sourceSentence - a sentence from the source text

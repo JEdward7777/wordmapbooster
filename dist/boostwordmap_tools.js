@@ -147,6 +147,12 @@ var AbstractWordMapWrapper = /** @class */ (function () {
     AbstractWordMapWrapper.prototype.appendAlignmentMemory = function (alignments) {
         this.wordMap.appendAlignmentMemory(alignments);
     };
+    AbstractWordMapWrapper.prototype.appendCorpusTokens = function (sourceTokens, targetTokens) {
+        this.wordMap.appendCorpusTokens(sourceTokens, targetTokens);
+    };
+    AbstractWordMapWrapper.prototype.appendKeyedCorpusTokens = function (sourceTokens, targetTokens) {
+        this.wordMap.appendCorpusTokens(Object.values(sourceTokens), Object.values(targetTokens));
+    };
     /**
      * Predicts the word alignments between the sentences.
      * @param {string} sourceSentence - a sentence from the source text
@@ -302,7 +308,7 @@ var BoostWordMap = /** @class */ (function (_super) {
         if (target_max_alignments === void 0) { target_max_alignments = 1000; }
         var correct_predictions = [];
         var incorrect_predictions = [];
-        //if we have too many alignments it takes too long to spin through them.  So if we have mor then target_max_alignments
+        //if we have too many alignments it takes too long to spin through them.  So if we have more then target_max_alignments
         //we will decimate it down to that amount
         if (Object.keys(alignments).length > target_max_alignments) {
             //shuffle the alignments and then take the first target_max_alignments

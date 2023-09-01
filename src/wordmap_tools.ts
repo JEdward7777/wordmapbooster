@@ -360,7 +360,7 @@ export function grade_mapping_method( source_sentence_tokens_dict : { [key: stri
                 }
             }
             const ratio_correct = num_correct_mappings/manual_mappings.length;
-            ratio_correct_sum += ratio_correct
+            ratio_correct_sum += ratio_correct;
             output_stream.write( `${sentence_key},${manual_mappings.length},${firstPredictions.length},${num_correct_mappings},${ratio_correct}\n`)
 
             if( global.gc ){
