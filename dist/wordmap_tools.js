@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.grade_mapping_method = exports.is_part_of_correct_prediction = exports.is_correct_prediction = exports.token_to_hash = exports.word_map_predict_tokens = exports.convert_alignment_to_alignment_dict = exports.convert_tc_to_token_dict = exports.compile_verse_text_pair = exports.add_book_alignment_to_wordmap = exports.extract_alignment_frequency = exports.ChapterVerse = void 0;
+exports.updateTokenLocations = exports.grade_mapping_method = exports.is_part_of_correct_prediction = exports.is_correct_prediction = exports.token_to_hash = exports.word_map_predict_tokens = exports.convert_alignment_to_alignment_dict = exports.convert_tc_to_token_dict = exports.compile_verse_text_pair = exports.add_book_alignment_to_wordmap = exports.extract_alignment_frequency = exports.ChapterVerse = void 0;
 var wordmap_lexer_1 = require("wordmap-lexer");
 var wordmap_1 = require("wordmap");
 //import usfmjs from 'usfm-js';
@@ -341,4 +341,40 @@ function grade_mapping_method(source_sentence_tokens_dict, target_sentence_token
     console.log("average_ratio_correct: ".concat(average_ratio_correct));
 }
 exports.grade_mapping_method = grade_mapping_method;
+/**
+ * Adds the indexing location into tokens similar to tokenizeWords in Lexer.
+ * https://github.com/unfoldingWord/wordMAP-lexer/blob/develop/src/Lexer.ts#L20
+ * @param {Token[]} inputTokens - an array Wordmap Token objects.
+ * @param sentenceCharLength - the length of the sentence in characters
+ */
+function updateTokenLocations(inputTokens, sentenceCharLength) {
+    if (sentenceCharLength === void 0) { sentenceCharLength = -1; }
+    if (sentenceCharLength === -1) {
+        sentenceCharLength = inputTokens.map(function (t) { return t.text; }).join(" ").length;
+    }
+    //const tokens: {text: string, position: number, characterPosition: number, sentenceTokenLen: number, sentenceCharLen: number, occurrence: number}[] = [];
+    var charPos = 0;
+    var tokenCount = 0;
+    var occurrenceIndex = {};
+    for (var _i = 0, inputTokens_1 = inputTokens; _i < inputTokens_1.length; _i++) {
+        var inputToken = inputTokens_1[_i];
+        if (!occurrenceIndex[inputToken.text]) {
+            occurrenceIndex[inputToken.text] = 0;
+        }
+        occurrenceIndex[inputToken.text] += 1;
+        inputToken.tokenPos = tokenCount;
+        inputToken.charPos = charPos;
+        inputToken.sentenceTokenLen = inputTokens.length;
+        inputToken.sentenceCharLen = sentenceCharLength;
+        inputToken.tokenOccurrence = occurrenceIndex[inputToken.text];
+        tokenCount++;
+        charPos += inputToken.text.length;
+    }
+    // Finish adding occurrence information
+    for (var _a = 0, inputTokens_2 = inputTokens; _a < inputTokens_2.length; _a++) {
+        var t = inputTokens_2[_a];
+        t.tokenOccurrences = occurrenceIndex[t.text];
+    }
+}
+exports.updateTokenLocations = updateTokenLocations;
 //# sourceMappingURL=wordmap_tools.js.map

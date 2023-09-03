@@ -373,3 +373,38 @@ export function grade_mapping_method( source_sentence_tokens_dict : { [key: stri
     const average_ratio_correct = ratio_correct_sum/Object.keys(target_sentence_tokens_dict).length;
     console.log( `average_ratio_correct: ${average_ratio_correct}`)
 }
+
+/**
+ * Adds the indexing location into tokens similar to tokenizeWords in Lexer.
+ * https://github.com/unfoldingWord/wordMAP-lexer/blob/develop/src/Lexer.ts#L20
+ * @param {Token[]} inputTokens - an array Wordmap Token objects.
+ * @param sentenceCharLength - the length of the sentence in characters
+ */
+export function updateTokenLocations(inputTokens, sentenceCharLength = -1){
+    if (sentenceCharLength === -1) {
+        sentenceCharLength = inputTokens.map( t => t.text ).join(" ").length;
+    }
+  
+    //const tokens: {text: string, position: number, characterPosition: number, sentenceTokenLen: number, sentenceCharLen: number, occurrence: number}[] = [];
+    let charPos = 0;
+    let tokenCount = 0;
+    const occurrenceIndex = {};
+    for (const inputToken of inputTokens) {
+        if (!occurrenceIndex[inputToken.text]) {
+            occurrenceIndex[inputToken.text] = 0;
+        }
+        occurrenceIndex[inputToken.text] += 1;
+        inputToken.tokenPos = tokenCount;
+        inputToken.charPos = charPos;
+        inputToken.sentenceTokenLen = inputTokens.length;
+        inputToken.sentenceCharLen = sentenceCharLength;
+        inputToken.tokenOccurrence = occurrenceIndex[inputToken.text];
+        tokenCount++;
+        charPos += inputToken.text.length;
+    }
+  
+    // Finish adding occurrence information
+    for( const t of inputTokens){
+      t.tokenOccurrences = occurrenceIndex[t.text];
+    }
+  }

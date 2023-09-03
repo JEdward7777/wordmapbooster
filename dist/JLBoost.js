@@ -118,7 +118,7 @@ var TreeBranch = /** @class */ (function (_super) {
             follow_left_side = data[this.feature_index] === this.split_value;
         }
         else {
-            follow_left_side = data[this.feature_index] <= this.split_value;
+            follow_left_side = (!isNaN(data[this.feature_index]) ? data[this.feature_index] : -1) <= this.split_value;
         }
         return (follow_left_side) ?
             this.left_side.predict_single(data, categorical_categories) :
@@ -164,12 +164,12 @@ var TreeBranch = /** @class */ (function (_super) {
                 first_of_right_hand = Math.min(Math.max(Math.floor(Math.random() * length), 1), length - 1);
                 // Sort the section by the selected feature index
                 xy_data_sorted = xy_data.slice();
-                xy_data_sorted.sort(function (a, b) { return a[_this.feature_index] - b[_this.feature_index]; });
+                xy_data_sorted.sort(function (a, b) { return (!isNaN(a[_this.feature_index]) ? a[_this.feature_index] : -1) - (!isNaN(b[_this.feature_index]) ? b[_this.feature_index] : -1); });
                 //determine our split value from the randomly hit split location.
                 this.split_value =
                     0.5 *
-                        (xy_data_sorted[first_of_right_hand - 1][this.feature_index] +
-                            xy_data_sorted[first_of_right_hand][this.feature_index]);
+                        ((!isNaN(xy_data_sorted[first_of_right_hand - 1][this.feature_index]) ? xy_data_sorted[first_of_right_hand - 1][this.feature_index] : -1) +
+                            (!isNaN(xy_data_sorted[first_of_right_hand][this.feature_index]) ? xy_data_sorted[first_of_right_hand][this.feature_index] : -1));
             }
         }
         //check for a degenerate split.

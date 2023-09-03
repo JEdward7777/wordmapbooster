@@ -118,6 +118,15 @@ var AbstractWordMapWrapper = /** @class */ (function () {
             "wordMap.engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index": Object.fromEntries(this.wordMap.engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index),
             "wordMap.engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index": Object.fromEntries(this.wordMap.engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index),
             "wordMap.engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index": Object.fromEntries(this.wordMap.engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index),
+            "wordMap.engine.corpusIndex.staticIndex.srcTokenLength": this.wordMap.engine.corpusIndex.staticIndex.srcTokenLength,
+            "wordMap.engine.corpusIndex.staticIndex.tgtTokenLength": this.wordMap.engine.corpusIndex.staticIndex.tgtTokenLength,
+            "wordMap.engine.corpusIndex.staticIndex.srcCharLength": this.wordMap.engine.corpusIndex.staticIndex.srcCharLength,
+            "wordMap.engine.corpusIndex.staticIndex.tgtCharLength": this.wordMap.engine.corpusIndex.staticIndex.tgtCharLength,
+            "wordMap.engine.corpusIndex.staticIndex.srcNgramFreqIndex.index": Object.fromEntries(this.wordMap.engine.corpusIndex.staticIndex.srcNgramFreqIndex.index),
+            "wordMap.engine.corpusIndex.staticIndex.tgtNgramFreqIndex.index": Object.fromEntries(this.wordMap.engine.corpusIndex.staticIndex.tgtNgramFreqIndex.index),
+            "wordMap.engine.corpusIndex.permutationIndex.alignPermFreqIndex.index": Object.fromEntries(this.wordMap.engine.corpusIndex.permutationIndex.alignPermFreqIndex.index),
+            "wordMap.engine.corpusIndex.permutationIndex.srcNgramPermFreqIndex.index": Object.fromEntries(this.wordMap.engine.corpusIndex.permutationIndex.srcNgramPermFreqIndex.index),
+            "wordMap.engine.corpusIndex.permutationIndex.tgtNgramPermFreqIndex.index": Object.fromEntries(this.wordMap.engine.corpusIndex.permutationIndex.tgtNgramPermFreqIndex.index),
             "opts": this.opts,
         };
         return result;
@@ -137,6 +146,26 @@ var AbstractWordMapWrapper = /** @class */ (function () {
         });
         Object.entries(data['wordMap.engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index']).forEach(function (key_value) {
             _this.wordMap.engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index.set(key_value[0], key_value[1]);
+        });
+        this.wordMap.engine.corpusIndex.staticIndex.srcTokenLength = data["wordMap.engine.corpusIndex.staticIndex.srcTokenLength"];
+        this.wordMap.engine.corpusIndex.staticIndex.srcTokenLength = data["wordMap.engine.corpusIndex.staticIndex.srcTokenLength"];
+        this.wordMap.engine.corpusIndex.staticIndex.tgtTokenLength = data["wordMap.engine.corpusIndex.staticIndex.tgtTokenLength"];
+        this.wordMap.engine.corpusIndex.staticIndex.srcCharLength = data["wordMap.engine.corpusIndex.staticIndex.srcCharLength"];
+        this.wordMap.engine.corpusIndex.staticIndex.tgtCharLength = data["wordMap.engine.corpusIndex.staticIndex.tgtCharLength"];
+        Object.entries(data["wordMap.engine.corpusIndex.staticIndex.srcNgramFreqIndex.index"]).forEach(function (key_value) {
+            _this.wordMap.engine.corpusIndex.staticIndex.srcNgramFreqIndex.index.set(key_value[0], key_value[1]);
+        });
+        Object.entries(data["wordMap.engine.corpusIndex.staticIndex.tgtNgramFreqIndex.index"]).forEach(function (key_value) {
+            _this.wordMap.engine.corpusIndex.staticIndex.tgtNgramFreqIndex.index.set(key_value[0], key_value[1]);
+        });
+        Object.entries(data["wordMap.engine.corpusIndex.permutationIndex.alignPermFreqIndex.index"]).forEach(function (key_value) {
+            _this.wordMap.engine.corpusIndex.permutationIndex.alignPermFreqIndex.index.set(key_value[0], key_value[1]);
+        });
+        Object.entries(data["wordMap.engine.corpusIndex.permutationIndex.srcNgramPermFreqIndex.index"]).forEach(function (key_value) {
+            _this.wordMap.engine.corpusIndex.permutationIndex.srcNgramPermFreqIndex.index.set(key_value[0], key_value[1]);
+        });
+        Object.entries(data["wordMap.engine.corpusIndex.permutationIndex.tgtNgramPermFreqIndex.index"]).forEach(function (key_value) {
+            _this.wordMap.engine.corpusIndex.permutationIndex.tgtNgramPermFreqIndex.index.set(key_value[0], key_value[1]);
         });
         return this;
     };

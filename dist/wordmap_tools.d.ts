@@ -59,3 +59,10 @@ export declare function grade_mapping_method(source_sentence_tokens_dict: {
 }, manual_mappings_dict: {
     [key: string]: Alignment[];
 }, output_stream: Writable, mapping_function: (from_tokens: Token[], to_tokens: Token[]) => Suggestion[]): void;
+/**
+ * Adds the indexing location into tokens similar to tokenizeWords in Lexer.
+ * https://github.com/unfoldingWord/wordMAP-lexer/blob/develop/src/Lexer.ts#L20
+ * @param {Token[]} inputTokens - an array Wordmap Token objects.
+ * @param sentenceCharLength - the length of the sentence in characters
+ */
+export declare function updateTokenLocations(inputTokens: any, sentenceCharLength?: number): void;
