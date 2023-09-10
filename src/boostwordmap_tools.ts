@@ -101,22 +101,44 @@ export abstract class AbstractWordMapWrapper {
      * Saves the model to a json-able structure.
      * @returns {Object}
      */
+    // save(): {[key:string]:any}{
+    //     const result = {
+    //         "wordMap.engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index": Object.fromEntries((this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index ),
+    //         "wordMap.engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index": Object.fromEntries((this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index ),
+    //         "wordMap.engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index": Object.fromEntries((this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index ),
+
+            
+    //         "wordMap.engine.corpusIndex.staticIndex.srcTokenLength"                  : (this.wordMap as any).engine.corpusIndex.staticIndex.srcTokenLength,
+    //         "wordMap.engine.corpusIndex.staticIndex.tgtTokenLength"                  : (this.wordMap as any).engine.corpusIndex.staticIndex.tgtTokenLength,
+    //         "wordMap.engine.corpusIndex.staticIndex.srcCharLength"                   : (this.wordMap as any).engine.corpusIndex.staticIndex.srcCharLength            ,
+    //         "wordMap.engine.corpusIndex.staticIndex.tgtCharLength"                   : (this.wordMap as any).engine.corpusIndex.staticIndex.tgtCharLength,
+    //         "wordMap.engine.corpusIndex.staticIndex.srcNgramFreqIndex.index"         : Object.fromEntries((this.wordMap as any).engine.corpusIndex.staticIndex.srcNgramFreqIndex.index),
+    //         "wordMap.engine.corpusIndex.staticIndex.tgtNgramFreqIndex.index"         : Object.fromEntries((this.wordMap as any).engine.corpusIndex.staticIndex.tgtNgramFreqIndex.index),
+    //         "wordMap.engine.corpusIndex.permutationIndex.alignPermFreqIndex.index"   : Object.fromEntries((this.wordMap as any).engine.corpusIndex.permutationIndex.alignPermFreqIndex.index),
+    //         "wordMap.engine.corpusIndex.permutationIndex.srcNgramPermFreqIndex.index": Object.fromEntries((this.wordMap as any).engine.corpusIndex.permutationIndex.srcNgramPermFreqIndex.index),
+    //         "wordMap.engine.corpusIndex.permutationIndex.tgtNgramPermFreqIndex.index": Object.fromEntries((this.wordMap as any).engine.corpusIndex.permutationIndex.tgtNgramPermFreqIndex.index),
+
+    //         "opts": this.opts,
+    //     };
+    //     return result;
+    // }
+
     save(): {[key:string]:any}{
         const result = {
-            "wordMap.engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index": Object.fromEntries((this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index ),
-            "wordMap.engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index": Object.fromEntries((this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index ),
-            "wordMap.engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index": Object.fromEntries((this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index ),
+            "wordMap.engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index": Array.from((this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index.entries() ),
+            "wordMap.engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index": Array.from((this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index.entries() ),
+            "wordMap.engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index": Array.from((this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index.entries() ),
 
             
             "wordMap.engine.corpusIndex.staticIndex.srcTokenLength"                  : (this.wordMap as any).engine.corpusIndex.staticIndex.srcTokenLength,
             "wordMap.engine.corpusIndex.staticIndex.tgtTokenLength"                  : (this.wordMap as any).engine.corpusIndex.staticIndex.tgtTokenLength,
             "wordMap.engine.corpusIndex.staticIndex.srcCharLength"                   : (this.wordMap as any).engine.corpusIndex.staticIndex.srcCharLength            ,
             "wordMap.engine.corpusIndex.staticIndex.tgtCharLength"                   : (this.wordMap as any).engine.corpusIndex.staticIndex.tgtCharLength,
-            "wordMap.engine.corpusIndex.staticIndex.srcNgramFreqIndex.index"         : Object.fromEntries((this.wordMap as any).engine.corpusIndex.staticIndex.srcNgramFreqIndex.index),
-            "wordMap.engine.corpusIndex.staticIndex.tgtNgramFreqIndex.index"         : Object.fromEntries((this.wordMap as any).engine.corpusIndex.staticIndex.tgtNgramFreqIndex.index),
-            "wordMap.engine.corpusIndex.permutationIndex.alignPermFreqIndex.index"   : Object.fromEntries((this.wordMap as any).engine.corpusIndex.permutationIndex.alignPermFreqIndex.index),
-            "wordMap.engine.corpusIndex.permutationIndex.srcNgramPermFreqIndex.index": Object.fromEntries((this.wordMap as any).engine.corpusIndex.permutationIndex.srcNgramPermFreqIndex.index),
-            "wordMap.engine.corpusIndex.permutationIndex.tgtNgramPermFreqIndex.index": Object.fromEntries((this.wordMap as any).engine.corpusIndex.permutationIndex.tgtNgramPermFreqIndex.index),
+            "wordMap.engine.corpusIndex.staticIndex.srcNgramFreqIndex.index"         : Array.from((this.wordMap as any).engine.corpusIndex.staticIndex.srcNgramFreqIndex.index.entries() ),
+            "wordMap.engine.corpusIndex.staticIndex.tgtNgramFreqIndex.index"         : Array.from((this.wordMap as any).engine.corpusIndex.staticIndex.tgtNgramFreqIndex.index.entries() ),
+            "wordMap.engine.corpusIndex.permutationIndex.alignPermFreqIndex.index"   : Array.from((this.wordMap as any).engine.corpusIndex.permutationIndex.alignPermFreqIndex.index.entries() ),
+            "wordMap.engine.corpusIndex.permutationIndex.srcNgramPermFreqIndex.index": Array.from((this.wordMap as any).engine.corpusIndex.permutationIndex.srcNgramPermFreqIndex.index.entries() ),
+            "wordMap.engine.corpusIndex.permutationIndex.tgtNgramPermFreqIndex.index": Array.from((this.wordMap as any).engine.corpusIndex.permutationIndex.tgtNgramPermFreqIndex.index.entries() ),
 
             "opts": this.opts,
         };
@@ -127,17 +149,56 @@ export abstract class AbstractWordMapWrapper {
      * This is an abstract method which loads from a structure which is JSON-able.
      * @param data - the data to load
      */
+    // specificLoad(data: any): AbstractWordMapWrapper {
+    //     //opts is handled in the constructor.
+    //     Object.entries(data['wordMap.engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index']).forEach((key_value) => {
+    //         (this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index.set(key_value[0],key_value[1]);
+    //     });
+    //     Object.entries(data['wordMap.engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index']).forEach((key_value) => {
+    //         (this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index.set(key_value[0],key_value[1]);
+    //     });
+    //     Object.entries(data['wordMap.engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index']).forEach((key_value) => {
+    //         (this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index.set(key_value[0],key_value[1]);
+    //     });
+
+        
+    //     (this.wordMap as any).engine.corpusIndex.staticIndex.srcTokenLength = data["wordMap.engine.corpusIndex.staticIndex.srcTokenLength"];
+    //     (this.wordMap as any).engine.corpusIndex.staticIndex.srcTokenLength = data["wordMap.engine.corpusIndex.staticIndex.srcTokenLength"];
+    //     (this.wordMap as any).engine.corpusIndex.staticIndex.tgtTokenLength = data["wordMap.engine.corpusIndex.staticIndex.tgtTokenLength"];
+    //     (this.wordMap as any).engine.corpusIndex.staticIndex.srcCharLength  = data["wordMap.engine.corpusIndex.staticIndex.srcCharLength"];
+    //     (this.wordMap as any).engine.corpusIndex.staticIndex.tgtCharLength  = data["wordMap.engine.corpusIndex.staticIndex.tgtCharLength"];
+    //     Object.entries(data["wordMap.engine.corpusIndex.staticIndex.srcNgramFreqIndex.index"         ]).forEach((key_value) => {
+    //         (this.wordMap as any).engine.corpusIndex.staticIndex.srcNgramFreqIndex.index.set(key_value[0],key_value[1]);
+    //     });
+    //     Object.entries(data["wordMap.engine.corpusIndex.staticIndex.tgtNgramFreqIndex.index"         ]).forEach((key_value) => {
+    //         (this.wordMap as any).engine.corpusIndex.staticIndex.tgtNgramFreqIndex.index.set(key_value[0],key_value[1]);
+    //     });
+    //     Object.entries(data["wordMap.engine.corpusIndex.permutationIndex.alignPermFreqIndex.index"   ]).forEach((key_value) => {
+    //         (this.wordMap as any).engine.corpusIndex.permutationIndex.alignPermFreqIndex.index.set(key_value[0],key_value[1]);
+    //     });
+    //     Object.entries(data["wordMap.engine.corpusIndex.permutationIndex.srcNgramPermFreqIndex.index"]).forEach((key_value) => {
+    //         (this.wordMap as any).engine.corpusIndex.permutationIndex.srcNgramPermFreqIndex.index.set(key_value[0],key_value[1]);
+    //     });
+    //     Object.entries(data["wordMap.engine.corpusIndex.permutationIndex.tgtNgramPermFreqIndex.index"]).forEach((key_value) => {
+    //         (this.wordMap as any).engine.corpusIndex.permutationIndex.tgtNgramPermFreqIndex.index.set(key_value[0],key_value[1]);
+    //     });
+
+    //     return this;
+    // }
+
     specificLoad(data: any): AbstractWordMapWrapper {
         //opts is handled in the constructor.
-        Object.entries(data['wordMap.engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index']).forEach((key_value) => {
-            (this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index.set(key_value[0],key_value[1]);
-        });
-        Object.entries(data['wordMap.engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index']).forEach((key_value) => {
-            (this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index.set(key_value[0],key_value[1]);
-        });
-        Object.entries(data['wordMap.engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index']).forEach((key_value) => {
-            (this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index.set(key_value[0],key_value[1]);
-        });
+        (this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index = new Map(
+            data['wordMap.engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index']
+        );
+
+        (this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index = new Map(
+            data['wordMap.engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index']
+        );
+
+        (this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index = new Map(
+            data['wordMap.engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index']
+        );
 
         
         (this.wordMap as any).engine.corpusIndex.staticIndex.srcTokenLength = data["wordMap.engine.corpusIndex.staticIndex.srcTokenLength"];
@@ -145,22 +206,23 @@ export abstract class AbstractWordMapWrapper {
         (this.wordMap as any).engine.corpusIndex.staticIndex.tgtTokenLength = data["wordMap.engine.corpusIndex.staticIndex.tgtTokenLength"];
         (this.wordMap as any).engine.corpusIndex.staticIndex.srcCharLength  = data["wordMap.engine.corpusIndex.staticIndex.srcCharLength"];
         (this.wordMap as any).engine.corpusIndex.staticIndex.tgtCharLength  = data["wordMap.engine.corpusIndex.staticIndex.tgtCharLength"];
-        Object.entries(data["wordMap.engine.corpusIndex.staticIndex.srcNgramFreqIndex.index"         ]).forEach((key_value) => {
-            (this.wordMap as any).engine.corpusIndex.staticIndex.srcNgramFreqIndex.index.set(key_value[0],key_value[1]);
-        });
-        Object.entries(data["wordMap.engine.corpusIndex.staticIndex.tgtNgramFreqIndex.index"         ]).forEach((key_value) => {
-            (this.wordMap as any).engine.corpusIndex.staticIndex.tgtNgramFreqIndex.index.set(key_value[0],key_value[1]);
-        });
-        Object.entries(data["wordMap.engine.corpusIndex.permutationIndex.alignPermFreqIndex.index"   ]).forEach((key_value) => {
-            (this.wordMap as any).engine.corpusIndex.permutationIndex.alignPermFreqIndex.index.set(key_value[0],key_value[1]);
-        });
-        Object.entries(data["wordMap.engine.corpusIndex.permutationIndex.srcNgramPermFreqIndex.index"]).forEach((key_value) => {
-            (this.wordMap as any).engine.corpusIndex.permutationIndex.srcNgramPermFreqIndex.index.set(key_value[0],key_value[1]);
-        });
-        Object.entries(data["wordMap.engine.corpusIndex.permutationIndex.tgtNgramPermFreqIndex.index"]).forEach((key_value) => {
-            (this.wordMap as any).engine.corpusIndex.permutationIndex.tgtNgramPermFreqIndex.index.set(key_value[0],key_value[1]);
-        });
 
+
+        (this.wordMap as any).engine.corpusIndex.staticIndex.srcNgramFreqIndex.index = new Map(
+            data["wordMap.engine.corpusIndex.staticIndex.srcNgramFreqIndex.index"         ]
+        );
+        (this.wordMap as any).engine.corpusIndex.staticIndex.tgtNgramFreqIndex.index = new Map(
+            data["wordMap.engine.corpusIndex.staticIndex.tgtNgramFreqIndex.index"         ]
+        );
+        (this.wordMap as any).engine.corpusIndex.permutationIndex.alignPermFreqIndex.index = new Map(
+            data["wordMap.engine.corpusIndex.permutationIndex.alignPermFreqIndex.index"   ]
+        );
+        (this.wordMap as any).engine.corpusIndex.permutationIndex.srcNgramPermFreqIndex.index = new Map(
+            data["wordMap.engine.corpusIndex.permutationIndex.srcNgramPermFreqIndex.index"]
+        );
+        (this.wordMap as any).engine.corpusIndex.permutationIndex.tgtNgramPermFreqIndex.index = new Map(
+            data["wordMap.engine.corpusIndex.permutationIndex.tgtNgramPermFreqIndex.index"]
+        );
         return this;
     }
 
