@@ -6,6 +6,9 @@ export declare abstract class AbstractWordMapWrapper {
     protected wordMap: WordMap;
     engine: Engine;
     protected opts: any;
+    protected alignmentStash: Alignment[];
+    protected sourceCorpusStash: Token[][];
+    protected targetCorpusStash: Token[][];
     static load(data: {
         [key: string]: any;
     }): AbstractWordMapWrapper;
@@ -23,10 +26,10 @@ export declare abstract class AbstractWordMapWrapper {
      */
     specificLoad(data: any): AbstractWordMapWrapper;
     /**
-     * Appends alignment memory engine.
+     * Appends alignment memory engine.  This is protected because the add_alignments_2 or add_alignments_4 should be used instead.
      * @param alignments - an alignment or array of alignments
      */
-    appendAlignmentMemory(alignments: Alignment | Alignment[]): void;
+    protected appendAlignmentMemory(alignments: Alignment | Alignment[]): void;
     appendCorpusTokens(sourceTokens: Token[][], targetTokens: Token[][]): void;
     appendKeyedCorpusTokens(sourceTokens: {
         [key: string]: Token[];

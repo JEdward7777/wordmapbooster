@@ -82,6 +82,9 @@ function addAlignmentToHashes(sourceToTargetHash, targetToSourceHash, alignment)
 }
 var AbstractWordMapWrapper = /** @class */ (function () {
     function AbstractWordMapWrapper(opts) {
+        this.alignmentStash = [];
+        this.sourceCorpusStash = [];
+        this.targetCorpusStash = [];
         //If opts.train_steps is not set, set it to 1000.
         if (!('train_steps' in opts))
             opts["train_steps"] = 1000;
@@ -113,39 +116,109 @@ var AbstractWordMapWrapper = /** @class */ (function () {
      * Saves the model to a json-able structure.
      * @returns {Object}
      */
-    // save(): {[key:string]:any}{
-    //     const result = {
-    //         "wordMap.engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index": Object.fromEntries((this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index ),
-    //         "wordMap.engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index": Object.fromEntries((this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index ),
-    //         "wordMap.engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index": Object.fromEntries((this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index ),
-    //         "wordMap.engine.corpusIndex.staticIndex.srcTokenLength"                  : (this.wordMap as any).engine.corpusIndex.staticIndex.srcTokenLength,
-    //         "wordMap.engine.corpusIndex.staticIndex.tgtTokenLength"                  : (this.wordMap as any).engine.corpusIndex.staticIndex.tgtTokenLength,
-    //         "wordMap.engine.corpusIndex.staticIndex.srcCharLength"                   : (this.wordMap as any).engine.corpusIndex.staticIndex.srcCharLength            ,
-    //         "wordMap.engine.corpusIndex.staticIndex.tgtCharLength"                   : (this.wordMap as any).engine.corpusIndex.staticIndex.tgtCharLength,
-    //         "wordMap.engine.corpusIndex.staticIndex.srcNgramFreqIndex.index"         : Object.fromEntries((this.wordMap as any).engine.corpusIndex.staticIndex.srcNgramFreqIndex.index),
-    //         "wordMap.engine.corpusIndex.staticIndex.tgtNgramFreqIndex.index"         : Object.fromEntries((this.wordMap as any).engine.corpusIndex.staticIndex.tgtNgramFreqIndex.index),
-    //         "wordMap.engine.corpusIndex.permutationIndex.alignPermFreqIndex.index"   : Object.fromEntries((this.wordMap as any).engine.corpusIndex.permutationIndex.alignPermFreqIndex.index),
-    //         "wordMap.engine.corpusIndex.permutationIndex.srcNgramPermFreqIndex.index": Object.fromEntries((this.wordMap as any).engine.corpusIndex.permutationIndex.srcNgramPermFreqIndex.index),
-    //         "wordMap.engine.corpusIndex.permutationIndex.tgtNgramPermFreqIndex.index": Object.fromEntries((this.wordMap as any).engine.corpusIndex.permutationIndex.tgtNgramPermFreqIndex.index),
-    //         "opts": this.opts,
-    //     };
-    //     return result;
-    // }
     AbstractWordMapWrapper.prototype.save = function () {
+        //Instead of serializing wordMap, serialize the data fed to wordMap.
+        var alignmentStashConverted = this.alignmentStash.map(function (alignment) {
+            return {
+                s: alignment.sourceNgram.getTokens().map(function (token) {
+                    // Here are the properties of the Token object in Wordmap-Lexer.  How they are fed
+                    //in the constructor and how they are accessed in access members is sometimes different.
+                    //Going to save them in the way the constructor uses them so that the Token object can be reconstructed.
+                    //Just by passing it to the constructor.
+                    //https://github.com/unfoldingWord/wordMAP-lexer/blob/develop/src/Token.ts
+                    // text: text in toString() out
+                    // tokenPos: position
+                    // charPos: characterPosition in charPosition out
+                    // sentenceCharLen: sentenceCharLen in sentenceCharacterLength out
+                    // sentenceTokenLen: sentenceTokenLen in sentenceTokenLength out
+                    // tokenOccurrence: occurrence
+                    // tokenOccurrences: occurrences
+                    // strongNumber: strong
+                    // lemmaString: lemma
+                    // morphString: morph
+                    var tokenConverted = {
+                        text: token.toString(),
+                    };
+                    if (token.position)
+                        tokenConverted["position"] = token.position;
+                    if (token.charPosition)
+                        tokenConverted["characterPosition"] = token.charPosition;
+                    if (token.sentenceCharacterLength)
+                        tokenConverted["sentenceCharLen"] = token.sentenceCharacterLength;
+                    if (token.sentenceTokenLength)
+                        tokenConverted["sentenceTokenLen"] = token.sentenceTokenLength;
+                    if (token.occurrence)
+                        tokenConverted["occurrence"] = token.occurrence;
+                    if (token.occurrences)
+                        tokenConverted["occurrences"] = token.occurrences;
+                    if (token.strong)
+                        tokenConverted["strong"] = token.strong;
+                    if (token.lemma)
+                        tokenConverted["lemma"] = token.lemma;
+                    if (token.morph)
+                        tokenConverted["morph"] = token.morph;
+                    return tokenConverted;
+                }),
+                t: alignment.targetNgram.getTokens().map(function (token) {
+                    var tokenConverted = {
+                        text: token.toString(),
+                    };
+                    if (token.position)
+                        tokenConverted["position"] = token.position;
+                    if (token.charPosition)
+                        tokenConverted["characterPosition"] = token.charPosition;
+                    if (token.sentenceCharacterLength)
+                        tokenConverted["sentenceCharLen"] = token.sentenceCharacterLength;
+                    if (token.sentenceTokenLength)
+                        tokenConverted["sentenceTokenLen"] = token.sentenceTokenLength;
+                    if (token.occurrence)
+                        tokenConverted["occurrence"] = token.occurrence;
+                    if (token.occurrences)
+                        tokenConverted["occurrences"] = token.occurrences;
+                    if (token.strong)
+                        tokenConverted["strong"] = token.strong;
+                    if (token.lemma)
+                        tokenConverted["lemma"] = token.lemma;
+                    if (token.morph)
+                        tokenConverted["morph"] = token.morph;
+                    return tokenConverted;
+                })
+            };
+        });
+        //don't need to keep as much data in the corpus because the occurrence information can be reconstructed.
+        var sourceCorpusStashConverted = this.sourceCorpusStash.map(function (tokens) {
+            return tokens.map(function (token) {
+                var tokenConverted = {
+                    text: token.toString(),
+                };
+                if (token.strong)
+                    tokenConverted["strong"] = token.strong;
+                if (token.lemma)
+                    tokenConverted["lemma"] = token.lemma;
+                if (token.morph)
+                    tokenConverted["morph"] = token.morph;
+                return tokenConverted;
+            });
+        });
+        var targetCorpusStashConverted = this.targetCorpusStash.map(function (tokens) {
+            return tokens.map(function (token) {
+                var tokenConverted = {
+                    text: token.toString(),
+                };
+                if (token.strong)
+                    tokenConverted["strong"] = token.strong;
+                if (token.lemma)
+                    tokenConverted["lemma"] = token.lemma;
+                if (token.morph)
+                    tokenConverted["morph"] = token.morph;
+                return tokenConverted;
+            });
+        });
         var result = {
-            "wordMap.engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index": Array.from(this.wordMap.engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index.entries()),
-            "wordMap.engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index": Array.from(this.wordMap.engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index.entries()),
-            "wordMap.engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index": Array.from(this.wordMap.engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index.entries()),
-            "wordMap.engine.corpusIndex.staticIndex.srcTokenLength": this.wordMap.engine.corpusIndex.staticIndex.srcTokenLength,
-            "wordMap.engine.corpusIndex.staticIndex.tgtTokenLength": this.wordMap.engine.corpusIndex.staticIndex.tgtTokenLength,
-            "wordMap.engine.corpusIndex.staticIndex.srcCharLength": this.wordMap.engine.corpusIndex.staticIndex.srcCharLength,
-            "wordMap.engine.corpusIndex.staticIndex.tgtCharLength": this.wordMap.engine.corpusIndex.staticIndex.tgtCharLength,
-            "wordMap.engine.corpusIndex.staticIndex.srcNgramFreqIndex.index": Array.from(this.wordMap.engine.corpusIndex.staticIndex.srcNgramFreqIndex.index.entries()),
-            "wordMap.engine.corpusIndex.staticIndex.tgtNgramFreqIndex.index": Array.from(this.wordMap.engine.corpusIndex.staticIndex.tgtNgramFreqIndex.index.entries()),
-            "wordMap.engine.corpusIndex.permutationIndex.alignPermFreqIndex.index": Array.from(this.wordMap.engine.corpusIndex.permutationIndex.alignPermFreqIndex.index.entries()),
-            "wordMap.engine.corpusIndex.permutationIndex.srcNgramPermFreqIndex.index": Array.from(this.wordMap.engine.corpusIndex.permutationIndex.srcNgramPermFreqIndex.index.entries()),
-            "wordMap.engine.corpusIndex.permutationIndex.tgtNgramPermFreqIndex.index": Array.from(this.wordMap.engine.corpusIndex.permutationIndex.tgtNgramPermFreqIndex.index.entries()),
-            "opts": this.opts,
+            alignments: alignmentStashConverted,
+            sourceCorpus: sourceCorpusStashConverted,
+            targetCorpus: targetCorpusStashConverted,
+            opts: this.opts,
         };
         return result;
     };
@@ -153,68 +226,67 @@ var AbstractWordMapWrapper = /** @class */ (function () {
      * This is an abstract method which loads from a structure which is JSON-able.
      * @param data - the data to load
      */
-    // specificLoad(data: any): AbstractWordMapWrapper {
-    //     //opts is handled in the constructor.
-    //     Object.entries(data['wordMap.engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index']).forEach((key_value) => {
-    //         (this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index.set(key_value[0],key_value[1]);
-    //     });
-    //     Object.entries(data['wordMap.engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index']).forEach((key_value) => {
-    //         (this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index.set(key_value[0],key_value[1]);
-    //     });
-    //     Object.entries(data['wordMap.engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index']).forEach((key_value) => {
-    //         (this.wordMap as any).engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index.set(key_value[0],key_value[1]);
-    //     });
-    //     (this.wordMap as any).engine.corpusIndex.staticIndex.srcTokenLength = data["wordMap.engine.corpusIndex.staticIndex.srcTokenLength"];
-    //     (this.wordMap as any).engine.corpusIndex.staticIndex.srcTokenLength = data["wordMap.engine.corpusIndex.staticIndex.srcTokenLength"];
-    //     (this.wordMap as any).engine.corpusIndex.staticIndex.tgtTokenLength = data["wordMap.engine.corpusIndex.staticIndex.tgtTokenLength"];
-    //     (this.wordMap as any).engine.corpusIndex.staticIndex.srcCharLength  = data["wordMap.engine.corpusIndex.staticIndex.srcCharLength"];
-    //     (this.wordMap as any).engine.corpusIndex.staticIndex.tgtCharLength  = data["wordMap.engine.corpusIndex.staticIndex.tgtCharLength"];
-    //     Object.entries(data["wordMap.engine.corpusIndex.staticIndex.srcNgramFreqIndex.index"         ]).forEach((key_value) => {
-    //         (this.wordMap as any).engine.corpusIndex.staticIndex.srcNgramFreqIndex.index.set(key_value[0],key_value[1]);
-    //     });
-    //     Object.entries(data["wordMap.engine.corpusIndex.staticIndex.tgtNgramFreqIndex.index"         ]).forEach((key_value) => {
-    //         (this.wordMap as any).engine.corpusIndex.staticIndex.tgtNgramFreqIndex.index.set(key_value[0],key_value[1]);
-    //     });
-    //     Object.entries(data["wordMap.engine.corpusIndex.permutationIndex.alignPermFreqIndex.index"   ]).forEach((key_value) => {
-    //         (this.wordMap as any).engine.corpusIndex.permutationIndex.alignPermFreqIndex.index.set(key_value[0],key_value[1]);
-    //     });
-    //     Object.entries(data["wordMap.engine.corpusIndex.permutationIndex.srcNgramPermFreqIndex.index"]).forEach((key_value) => {
-    //         (this.wordMap as any).engine.corpusIndex.permutationIndex.srcNgramPermFreqIndex.index.set(key_value[0],key_value[1]);
-    //     });
-    //     Object.entries(data["wordMap.engine.corpusIndex.permutationIndex.tgtNgramPermFreqIndex.index"]).forEach((key_value) => {
-    //         (this.wordMap as any).engine.corpusIndex.permutationIndex.tgtNgramPermFreqIndex.index.set(key_value[0],key_value[1]);
-    //     });
-    //     return this;
-    // }
     AbstractWordMapWrapper.prototype.specificLoad = function (data) {
         //opts is handled in the constructor.
-        this.wordMap.engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index = new Map(data['wordMap.engine.alignmentMemoryIndex.permutationIndex.alignPermFreqIndex.index']);
-        this.wordMap.engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index = new Map(data['wordMap.engine.alignmentMemoryIndex.permutationIndex.srcNgramPermFreqIndex.index']);
-        this.wordMap.engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index = new Map(data['wordMap.engine.alignmentMemoryIndex.permutationIndex.tgtNgramPermFreqIndex.index']);
-        this.wordMap.engine.corpusIndex.staticIndex.srcTokenLength = data["wordMap.engine.corpusIndex.staticIndex.srcTokenLength"];
-        this.wordMap.engine.corpusIndex.staticIndex.srcTokenLength = data["wordMap.engine.corpusIndex.staticIndex.srcTokenLength"];
-        this.wordMap.engine.corpusIndex.staticIndex.tgtTokenLength = data["wordMap.engine.corpusIndex.staticIndex.tgtTokenLength"];
-        this.wordMap.engine.corpusIndex.staticIndex.srcCharLength = data["wordMap.engine.corpusIndex.staticIndex.srcCharLength"];
-        this.wordMap.engine.corpusIndex.staticIndex.tgtCharLength = data["wordMap.engine.corpusIndex.staticIndex.tgtCharLength"];
-        this.wordMap.engine.corpusIndex.staticIndex.srcNgramFreqIndex.index = new Map(data["wordMap.engine.corpusIndex.staticIndex.srcNgramFreqIndex.index"]);
-        this.wordMap.engine.corpusIndex.staticIndex.tgtNgramFreqIndex.index = new Map(data["wordMap.engine.corpusIndex.staticIndex.tgtNgramFreqIndex.index"]);
-        this.wordMap.engine.corpusIndex.permutationIndex.alignPermFreqIndex.index = new Map(data["wordMap.engine.corpusIndex.permutationIndex.alignPermFreqIndex.index"]);
-        this.wordMap.engine.corpusIndex.permutationIndex.srcNgramPermFreqIndex.index = new Map(data["wordMap.engine.corpusIndex.permutationIndex.srcNgramPermFreqIndex.index"]);
-        this.wordMap.engine.corpusIndex.permutationIndex.tgtNgramPermFreqIndex.index = new Map(data["wordMap.engine.corpusIndex.permutationIndex.tgtNgramPermFreqIndex.index"]);
+        //load saved alignments.
+        if ("alignments" in data) {
+            var alignmentsStashConverted = data.alignments.map(function (alignment) {
+                return new wordmap_1.Alignment(new wordmap_1.Ngram(alignment.s.map(function (t) { return new wordmap_lexer_1.Token(t); })), new wordmap_1.Ngram(alignment.t.map(function (t) { return new wordmap_lexer_1.Token(t); })));
+            });
+            this.appendAlignmentMemory(alignmentsStashConverted);
+        }
+        //load saved corpus.
+        if ("sourceCorpus" in data && "targetCorpus" in data) {
+            var sourceCorpusStashConverted = data.sourceCorpus.map(function (tokens) {
+                return tokens.map(function (token) {
+                    return new wordmap_lexer_1.Token(token);
+                });
+            });
+            var targetCorpusStashConverted = data.targetCorpus.map(function (tokens) {
+                return tokens.map(function (token) {
+                    return new wordmap_lexer_1.Token(token);
+                });
+            });
+            this.appendCorpusTokens(sourceCorpusStashConverted, targetCorpusStashConverted);
+        }
         return this;
     };
     /**
-     * Appends alignment memory engine.
+     * Appends alignment memory engine.  This is protected because the add_alignments_2 or add_alignments_4 should be used instead.
      * @param alignments - an alignment or array of alignments
      */
     AbstractWordMapWrapper.prototype.appendAlignmentMemory = function (alignments) {
+        var _this = this;
         this.wordMap.appendAlignmentMemory(alignments);
+        //Test if alignments is an array or a single alignment.
+        if (alignments instanceof wordmap_1.Alignment) {
+            this.alignmentStash.push(alignments);
+        }
+        else {
+            //push all alignments
+            alignments.forEach(function (align) { return _this.alignmentStash.push(align); });
+        }
     };
     AbstractWordMapWrapper.prototype.appendCorpusTokens = function (sourceTokens, targetTokens) {
+        var _this = this;
+        //Add pos information to the tokens.
+        sourceTokens.forEach(function (tokens) { return (0, wordmap_tools_1.updateTokenLocations)(tokens); });
+        targetTokens.forEach(function (tokens) { return (0, wordmap_tools_1.updateTokenLocations)(tokens); });
         this.wordMap.appendCorpusTokens(sourceTokens, targetTokens);
+        sourceTokens.forEach(function (tokens) { return _this.sourceCorpusStash.push(tokens); });
+        targetTokens.forEach(function (tokens) { return _this.targetCorpusStash.push(tokens); });
     };
     AbstractWordMapWrapper.prototype.appendKeyedCorpusTokens = function (sourceTokens, targetTokens) {
-        this.wordMap.appendCorpusTokens(Object.values(sourceTokens), Object.values(targetTokens));
+        var sourceTokensArray = [];
+        var targetTokensArray = [];
+        //Pair up the tokens by key in the targetTokensArray.
+        Object.keys(targetTokens).forEach(function (key) {
+            if (key in sourceTokens) {
+                sourceTokensArray.push(sourceTokens[key]);
+                targetTokensArray.push(targetTokens[key]);
+            }
+        });
+        this.appendCorpusTokens(sourceTokensArray, targetTokensArray);
     };
     /**
      * Predicts the word alignments between the sentences.

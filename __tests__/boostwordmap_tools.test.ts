@@ -2,7 +2,6 @@ import WordMap from "wordmap/dist/WordMap";
 import { AbstractWordMapWrapper, JLBoostWordMap, MorphJLBoostWordMap, PlaneWordMap } from "../src/boostwordmap_tools";
 import { Token } from "wordmap-lexer";
 import { Alignment, Ngram, Suggestion } from "wordmap";
-import { updateTokenLocations } from "../src/wordmap_tools";
 
 describe('JLBoostWordMap', () => {
   test('Should be able to create new WordMap without throwing any exceptions', () => {
@@ -30,7 +29,6 @@ describe('JLBoostWordMap', () => {
              verseKey,
              verseTokens.map(verseToken => new Token(verseToken))
            ];
-           updateTokenLocations(result[1]);
            return result;
         }
       )
@@ -42,7 +40,6 @@ describe('JLBoostWordMap', () => {
              verseKey,
              verseTokens.map(verseToken => new Token(verseToken))
            ];
-           updateTokenLocations(result[1]);
            return result;
          }
       )
@@ -106,7 +103,6 @@ describe('JLBoostWordMap', () => {
             verseKey,
             verseTokens.map(verseToken => new Token(verseToken))
           ];
-          updateTokenLocations(result[1]);
           return result;
         }
       )
@@ -118,7 +114,6 @@ describe('JLBoostWordMap', () => {
              verseKey,
              verseTokens.map(verseToken => new Token(verseToken))
            ];
-           updateTokenLocations(result[1]);
            return result;
          }
       )
