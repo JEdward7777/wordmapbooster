@@ -249,6 +249,16 @@ export abstract class AbstractWordMapWrapper {
         }
     }
 
+    clearAlignmentMemory(){
+        //clear out the sashed memory
+        this.alignmentStash.length = 0;
+
+        //reboot wordmap by recreating it and stuffing it again with the saved corpus.
+        this.wordMap = new WordMap(this.opts);
+        this.engine = (this.wordMap as any).engine;
+        this.wordMap.appendCorpusTokens( this.sourceCorpusStash, this.targetCorpusStash );
+    }
+
     public appendCorpusTokens( sourceTokens: Token[][], targetTokens: Token[][]){
         //Add pos information to the tokens.
         sourceTokens.forEach( tokens => updateTokenLocations(tokens));
@@ -545,8 +555,7 @@ export abstract class BoostWordMap extends AbstractWordMapWrapper{
         Object.entries(alignments_split_a).forEach(([verseKey,verse_alignments]) => this.appendAlignmentMemory( verse_alignments ) );
         const [correct_predictions_1, incorrect_predictions_1] = this.collect_boost_training_data( source_text, target_text, alignments_split_b );
 
-        //this.clearAlignmentMemory();  Not in version 0.6.0 which I rolled back to.
-        (this as any).engine.alignmentMemoryIndex.clear();
+        this.clearAlignmentMemory()
 
         //now add b and train on a
         Object.entries(alignments_split_b).forEach(([verseKey,verse_alignments]) => this.appendAlignmentMemory( verse_alignments ) );
@@ -555,6 +564,9 @@ export abstract class BoostWordMap extends AbstractWordMapWrapper{
         //now train the model on both of them.
         const correct_predictions = correct_predictions_1.concat( correct_predictions_2);
         const incorrect_predictions = incorrect_predictions_1.concat( incorrect_predictions_2 );
+
+        //Add a back in for inference time.
+        Object.entries(alignments_split_a).forEach(([verseKey,verse_alignments]) => this.appendAlignmentMemory( verse_alignments ) );
 
         return this.do_boost_training(correct_predictions, incorrect_predictions);
     }

@@ -267,6 +267,14 @@ var AbstractWordMapWrapper = /** @class */ (function () {
             alignments.forEach(function (align) { return _this.alignmentStash.push(align); });
         }
     };
+    AbstractWordMapWrapper.prototype.clearAlignmentMemory = function () {
+        //clear out the sashed memory
+        this.alignmentStash.length = 0;
+        //reboot wordmap by recreating it and stuffing it again with the saved corpus.
+        this.wordMap = new wordmap_1.default(this.opts);
+        this.engine = this.wordMap.engine;
+        this.wordMap.appendCorpusTokens(this.sourceCorpusStash, this.targetCorpusStash);
+    };
     AbstractWordMapWrapper.prototype.appendCorpusTokens = function (sourceTokens, targetTokens) {
         var _this = this;
         //Add pos information to the tokens.
@@ -526,8 +534,7 @@ var BoostWordMap = /** @class */ (function (_super) {
             return _this.appendAlignmentMemory(verse_alignments);
         });
         var _a = this.collect_boost_training_data(source_text, target_text, alignments_split_b), correct_predictions_1 = _a[0], incorrect_predictions_1 = _a[1];
-        //this.clearAlignmentMemory();  Not in version 0.6.0 which I rolled back to.
-        this.engine.alignmentMemoryIndex.clear();
+        this.clearAlignmentMemory();
         //now add b and train on a
         Object.entries(alignments_split_b).forEach(function (_a) {
             var verseKey = _a[0], verse_alignments = _a[1];
@@ -537,6 +544,11 @@ var BoostWordMap = /** @class */ (function (_super) {
         //now train the model on both of them.
         var correct_predictions = correct_predictions_1.concat(correct_predictions_2);
         var incorrect_predictions = incorrect_predictions_1.concat(incorrect_predictions_2);
+        //Add a back in for inference time.
+        Object.entries(alignments_split_a).forEach(function (_a) {
+            var verseKey = _a[0], verse_alignments = _a[1];
+            return _this.appendAlignmentMemory(verse_alignments);
+        });
         return this.do_boost_training(correct_predictions, incorrect_predictions);
     };
     return BoostWordMap;

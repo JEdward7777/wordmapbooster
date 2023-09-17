@@ -30,6 +30,7 @@ export declare abstract class AbstractWordMapWrapper {
      * @param alignments - an alignment or array of alignments
      */
     protected appendAlignmentMemory(alignments: Alignment | Alignment[]): void;
+    clearAlignmentMemory(): void;
     appendCorpusTokens(sourceTokens: Token[][], targetTokens: Token[][]): void;
     appendKeyedCorpusTokens(sourceTokens: {
         [key: string]: Token[];
