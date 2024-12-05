@@ -25,6 +25,42 @@ var __assign = (this && this.__assign) || function () {
     };
     return __assign.apply(this, arguments);
 };
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __generator = (this && this.__generator) || function (thisArg, body) {
+    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
+    return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
+    function verb(n) { return function (v) { return step([n, v]); }; }
+    function step(op) {
+        if (f) throw new TypeError("Generator is already executing.");
+        while (g && (g = 0, op[0] && (_ = 0)), _) try {
+            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
+            if (y = 0, t) op = [op[0] & 2, t.value];
+            switch (op[0]) {
+                case 0: case 1: t = op; break;
+                case 4: _.label++; return { value: op[1], done: false };
+                case 5: _.label++; y = op[1]; op = [0]; continue;
+                case 7: op = _.ops.pop(); _.trys.pop(); continue;
+                default:
+                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
+                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
+                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
+                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
+                    if (t[2]) _.ops.pop();
+                    _.trys.pop(); continue;
+            }
+            op = body.call(thisArg, _);
+        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
+        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
+    }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MorphJLBoostWordMap = exports.JLBoostWordMap = exports.morph_code_prediction_to_feature_dict = exports.morph_code_catboost_cat_feature_order = exports.PlaneWordMap = exports.BoostWordMap = exports.AbstractWordMapWrapper = exports.catboost_feature_order = void 0;
 //import {WordMapProps} from "wordmap/core/WordMap"
@@ -111,6 +147,30 @@ var AbstractWordMapWrapper = /** @class */ (function () {
         var mapper = new MapperConstructor(data.opts);
         mapper.specificLoad(data);
         return mapper;
+    };
+    AbstractWordMapWrapper.async_load = function (data) {
+        return __awaiter(this, void 0, void 0, function () {
+            var loaders, MapperConstructor, mapper;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        loaders = {
+                            "PlaneWordMap": PlaneWordMap,
+                            "JLBoostWordMap": JLBoostWordMap,
+                            "MorphJLBoostWordMap": MorphJLBoostWordMap,
+                        };
+                        MapperConstructor = loaders[data.classType];
+                        if (!MapperConstructor) {
+                            throw new Error("Unknown classType: ".concat(data.classType));
+                        }
+                        mapper = new MapperConstructor(data.opts);
+                        return [4 /*yield*/, mapper.async_specificLoad(data)];
+                    case 1:
+                        _a.sent();
+                        return [2 /*return*/, mapper];
+                }
+            });
+        });
     };
     /**
      * Saves the model to a json-able structure.
@@ -252,6 +312,44 @@ var AbstractWordMapWrapper = /** @class */ (function () {
         return this;
     };
     /**
+     * This is an abstract method which loads from a structure which is JSON-able.
+     * @param data - the data to load
+     */
+    AbstractWordMapWrapper.prototype.async_specificLoad = function (data) {
+        return __awaiter(this, void 0, void 0, function () {
+            var alignmentsStashConverted, sourceCorpusStashConverted, targetCorpusStashConverted;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        //opts is handled in the constructor.
+                        //load saved alignments.
+                        if ("alignments" in data) {
+                            alignmentsStashConverted = data.alignments.map(function (alignment) {
+                                return new wordmap_1.Alignment(new wordmap_1.Ngram(alignment.s.map(function (t) { return new wordmap_lexer_1.Token(t); })), new wordmap_1.Ngram(alignment.t.map(function (t) { return new wordmap_lexer_1.Token(t); })));
+                            });
+                            this.appendAlignmentMemory(alignmentsStashConverted);
+                        }
+                        if (!("sourceCorpus" in data && "targetCorpus" in data)) return [3 /*break*/, 2];
+                        sourceCorpusStashConverted = data.sourceCorpus.map(function (tokens) {
+                            return tokens.map(function (token) {
+                                return new wordmap_lexer_1.Token(token);
+                            });
+                        });
+                        targetCorpusStashConverted = data.targetCorpus.map(function (tokens) {
+                            return tokens.map(function (token) {
+                                return new wordmap_lexer_1.Token(token);
+                            });
+                        });
+                        return [4 /*yield*/, this.async_appendCorpusTokens(sourceCorpusStashConverted, targetCorpusStashConverted)];
+                    case 1:
+                        _a.sent();
+                        _a.label = 2;
+                    case 2: return [2 /*return*/, this];
+                }
+            });
+        });
+    };
+    /**
      * Appends alignment memory engine.  This is protected because the add_alignments_2 or add_alignments_4 should be used instead.
      * @param alignments - an alignment or array of alignments
      */
@@ -283,6 +381,37 @@ var AbstractWordMapWrapper = /** @class */ (function () {
         this.wordMap.appendCorpusTokens(sourceTokens, targetTokens);
         sourceTokens.forEach(function (tokens) { return _this.sourceCorpusStash.push(tokens); });
         targetTokens.forEach(function (tokens) { return _this.targetCorpusStash.push(tokens); });
+    };
+    AbstractWordMapWrapper.prototype.async_appendCorpusTokens = function (sourceTokens, targetTokens) {
+        return __awaiter(this, void 0, void 0, function () {
+            var chunkSize, i, chunkSourceTokens, chunkTargetTokens;
+            var _this = this;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        //Add pos information to the tokens.
+                        sourceTokens.forEach(function (tokens) { return (0, wordmap_tools_1.updateTokenLocations)(tokens); });
+                        targetTokens.forEach(function (tokens) { return (0, wordmap_tools_1.updateTokenLocations)(tokens); });
+                        chunkSize = 20;
+                        i = 0;
+                        _a.label = 1;
+                    case 1:
+                        if (!(i < sourceTokens.length)) return [3 /*break*/, 3];
+                        chunkSourceTokens = sourceTokens.slice(i, i + chunkSize);
+                        chunkTargetTokens = targetTokens.slice(i, i + chunkSize);
+                        this.wordMap.appendCorpusTokens(chunkSourceTokens, chunkTargetTokens);
+                        i += chunkSize;
+                        return [4 /*yield*/, new Promise(function (resolve) { return setTimeout(resolve, 0); })];
+                    case 2:
+                        _a.sent();
+                        return [3 /*break*/, 1];
+                    case 3:
+                        sourceTokens.forEach(function (tokens) { return _this.sourceCorpusStash.push(tokens); });
+                        targetTokens.forEach(function (tokens) { return _this.targetCorpusStash.push(tokens); });
+                        return [2 /*return*/];
+                }
+            });
+        });
     };
     AbstractWordMapWrapper.prototype.appendKeyedCorpusTokens = function (sourceTokens, targetTokens) {
         var sourceTokensArray = [];
@@ -441,6 +570,23 @@ var BoostWordMap = /** @class */ (function (_super) {
         _super.prototype.specificLoad.call(this, data);
         this.ratio_of_training_data = data["ratio_of_training_data"];
         return this;
+    };
+    /**
+     * This is an abstract method which loads from a structure which is JSON-able.
+     * @param data - the data to load
+     */
+    BoostWordMap.prototype.async_specificLoad = function (data) {
+        return __awaiter(this, void 0, void 0, function () {
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, _super.prototype.async_specificLoad.call(this, data)];
+                    case 1:
+                        _a.sent();
+                        this.ratio_of_training_data = data["ratio_of_training_data"];
+                        return [2 /*return*/, this];
+                }
+            });
+        });
     };
     BoostWordMap.prototype.setTrainingRatio = function (ratio_of_training_data) {
         this.ratio_of_training_data = ratio_of_training_data;
@@ -675,6 +821,23 @@ var JLBoostWordMap = /** @class */ (function (_super) {
         this.jlboost_model = JLBoost_1.JLBoost.load(data.jlboost_model);
         return this;
     };
+    /**
+     * This is an abstract method which loads from a structure which is JSON-able.
+     * @param data - the data to load
+     */
+    JLBoostWordMap.prototype.async_specificLoad = function (data) {
+        return __awaiter(this, void 0, void 0, function () {
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, _super.prototype.async_specificLoad.call(this, data)];
+                    case 1:
+                        _a.sent();
+                        this.jlboost_model = JLBoost_1.JLBoost.load(data.jlboost_model);
+                        return [2 /*return*/, this];
+                }
+            });
+        });
+    };
     JLBoostWordMap.prototype.model_score = function (predictions) {
         for (var prediction_i = 0; prediction_i < predictions.length; ++prediction_i) {
             var numerical_features = jlboost_prediction_to_feature_dict(predictions[prediction_i]);
@@ -745,6 +908,23 @@ var MorphJLBoostWordMap = /** @class */ (function (_super) {
         _super.prototype.specificLoad.call(this, data);
         this.jlboost_model = JLBoost_1.JLBoost.load(data.jlboost_model);
         return this;
+    };
+    /**
+     * This is an abstract method which loads from a structure which is JSON-able.
+     * @param data - the data to load
+     */
+    MorphJLBoostWordMap.prototype.async_specificLoad = function (data) {
+        return __awaiter(this, void 0, void 0, function () {
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, _super.prototype.async_specificLoad.call(this, data)];
+                    case 1:
+                        _a.sent();
+                        this.jlboost_model = JLBoost_1.JLBoost.load(data.jlboost_model);
+                        return [2 /*return*/, this];
+                }
+            });
+        });
     };
     MorphJLBoostWordMap.prototype.model_score = function (predictions) {
         for (var prediction_i = 0; prediction_i < predictions.length; ++prediction_i) {

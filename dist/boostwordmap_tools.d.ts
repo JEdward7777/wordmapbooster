@@ -12,6 +12,9 @@ export declare abstract class AbstractWordMapWrapper {
     static load(data: {
         [key: string]: any;
     }): AbstractWordMapWrapper;
+    static async_load(data: {
+        [key: string]: any;
+    }): Promise<AbstractWordMapWrapper>;
     constructor(opts?: {});
     /**
      * Saves the model to a json-able structure.
@@ -26,12 +29,18 @@ export declare abstract class AbstractWordMapWrapper {
      */
     specificLoad(data: any): AbstractWordMapWrapper;
     /**
+     * This is an abstract method which loads from a structure which is JSON-able.
+     * @param data - the data to load
+     */
+    async_specificLoad(data: any): Promise<AbstractWordMapWrapper>;
+    /**
      * Appends alignment memory engine.  This is protected because the add_alignments_2 or add_alignments_4 should be used instead.
      * @param alignments - an alignment or array of alignments
      */
     protected appendAlignmentMemory(alignments: Alignment | Alignment[]): void;
     clearAlignmentMemory(): void;
     appendCorpusTokens(sourceTokens: Token[][], targetTokens: Token[][]): void;
+    async_appendCorpusTokens(sourceTokens: Token[][], targetTokens: Token[][]): Promise<void>;
     appendKeyedCorpusTokens(sourceTokens: {
         [key: string]: Token[];
     }, targetTokens: {
@@ -72,6 +81,11 @@ export declare abstract class BoostWordMap extends AbstractWordMapWrapper {
      * @param data - the data to load
      */
     specificLoad(data: any): AbstractWordMapWrapper;
+    /**
+     * This is an abstract method which loads from a structure which is JSON-able.
+     * @param data - the data to load
+     */
+    async_specificLoad(data: any): Promise<AbstractWordMapWrapper>;
     setTrainingRatio(ratio_of_training_data: number): void;
     collect_boost_training_data(source_text: {
         [key: string]: Token[];
@@ -174,6 +188,11 @@ export declare class JLBoostWordMap extends BoostWordMap {
      * @param data - the data to load
      */
     specificLoad(data: any): AbstractWordMapWrapper;
+    /**
+     * This is an abstract method which loads from a structure which is JSON-able.
+     * @param data - the data to load
+     */
+    async_specificLoad(data: any): Promise<AbstractWordMapWrapper>;
     model_score(predictions: Prediction[]): void;
     do_boost_training(correct_predictions: Prediction[], incorrect_predictions: Prediction[]): Promise<void>;
 }
@@ -191,6 +210,11 @@ export declare class MorphJLBoostWordMap extends BoostWordMap {
      * @param data - the data to load
      */
     specificLoad(data: any): AbstractWordMapWrapper;
+    /**
+     * This is an abstract method which loads from a structure which is JSON-able.
+     * @param data - the data to load
+     */
+    async_specificLoad(data: any): Promise<AbstractWordMapWrapper>;
     model_score(predictions: Prediction[]): void;
     do_boost_training(correct_predictions: Prediction[], incorrect_predictions: Prediction[]): Promise<void>;
 }
