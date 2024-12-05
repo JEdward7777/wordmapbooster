@@ -90,6 +90,29 @@ export abstract class AbstractWordMapWrapper {
         return mapper;
     }
 
+    static async async_load( data: {[key:string]:any}): Promise<AbstractWordMapWrapper>{
+        //switch on the data.classType and load the appropriate class
+        const loaders = {
+            "PlaneWordMap": PlaneWordMap,
+            "JLBoostWordMap": JLBoostWordMap,
+            "MorphJLBoostWordMap": MorphJLBoostWordMap,
+        };
+
+        // First construct it and then call specificLoad on it.
+        const MapperConstructor = loaders[data.classType];
+        if (!MapperConstructor) {
+            throw new Error(`Unknown classType: ${data.classType}`);
+        }
+
+        const mapper = new MapperConstructor(data.opts);
+
+
+        await mapper.async_specificLoad(data);
+
+
+        return mapper;
+    }
+
     constructor(opts?: {}) {
         //If opts.train_steps is not set, set it to 1000.
         if (!('train_steps' in opts)) opts["train_steps"] = 1000;
@@ -233,6 +256,46 @@ export abstract class AbstractWordMapWrapper {
         return this;
     }
 
+
+
+
+    /**
+     * This is an abstract method which loads from a structure which is JSON-able.
+     * @param data - the data to load
+     */
+    async async_specificLoad(data: any): Promise<AbstractWordMapWrapper> {
+        //opts is handled in the constructor.
+
+        //load saved alignments.
+        if( "alignments" in data ){
+            const alignmentsStashConverted = data.alignments.map( (alignment :any) => {
+                return new Alignment(
+                    new Ngram(alignment.s.map( (t: any) => new Token(t) )),
+                    new Ngram(alignment.t.map( (t: any) => new Token(t) ))
+                );
+            });
+            this.appendAlignmentMemory( alignmentsStashConverted );
+        }
+
+
+        //load saved corpus.
+        if( "sourceCorpus" in data && "targetCorpus" in data ){
+            const sourceCorpusStashConverted = data.sourceCorpus.map( (tokens :any) => {
+                return tokens.map( (token :any) => {
+                    return new Token(token);
+                });
+            });
+            const targetCorpusStashConverted = data.targetCorpus.map( (tokens :any) => {
+                return tokens.map( (token :any) => {
+                    return new Token(token);
+                });
+            })
+            await this.async_appendCorpusTokens( sourceCorpusStashConverted, targetCorpusStashConverted );
+        }
+
+        return this;
+    }
+
     /**
      * Appends alignment memory engine.  This is protected because the add_alignments_2 or add_alignments_4 should be used instead.
      * @param alignments - an alignment or array of alignments
@@ -265,6 +328,24 @@ export abstract class AbstractWordMapWrapper {
         targetTokens.forEach( tokens => updateTokenLocations(tokens));
 
         this.wordMap.appendCorpusTokens(sourceTokens, targetTokens);
+        sourceTokens.forEach( tokens => this.sourceCorpusStash.push(tokens));
+        targetTokens.forEach( tokens => this.targetCorpusStash.push(tokens));
+    }
+
+    public async async_appendCorpusTokens( sourceTokens: Token[][], targetTokens: Token[][]){
+        //Add pos information to the tokens.
+        sourceTokens.forEach( tokens => updateTokenLocations(tokens));
+        targetTokens.forEach( tokens => updateTokenLocations(tokens));
+
+        const chunkSize = 20;
+        let i = 0;
+        while (i < sourceTokens.length){
+            const chunkSourceTokens = sourceTokens.slice(i, i+chunkSize);
+            const chunkTargetTokens = targetTokens.slice(i, i+chunkSize);
+            this.wordMap.appendCorpusTokens(chunkSourceTokens, chunkTargetTokens);
+            i += chunkSize;
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
         sourceTokens.forEach( tokens => this.sourceCorpusStash.push(tokens));
         targetTokens.forEach( tokens => this.targetCorpusStash.push(tokens));
     }
@@ -438,6 +519,16 @@ export abstract class BoostWordMap extends AbstractWordMapWrapper{
      */
     specificLoad(data: any): AbstractWordMapWrapper {
         super.specificLoad(data);
+        this.ratio_of_training_data = data["ratio_of_training_data"];
+        return this;
+    }
+
+    /**
+     * This is an abstract method which loads from a structure which is JSON-able.
+     * @param data - the data to load
+     */
+    async async_specificLoad(data: any): Promise<AbstractWordMapWrapper> {
+        await super.async_specificLoad(data);
         this.ratio_of_training_data = data["ratio_of_training_data"];
         return this;
     }
@@ -703,6 +794,16 @@ export class JLBoostWordMap extends BoostWordMap{
         return this;
     }
 
+    /**
+     * This is an abstract method which loads from a structure which is JSON-able.
+     * @param data - the data to load
+     */
+    async async_specificLoad(data: any): Promise<AbstractWordMapWrapper> {
+        await super.async_specificLoad(data);
+        this.jlboost_model = JLBoost.load(data.jlboost_model);
+        return this;
+    }
+
     model_score( predictions: Prediction[]): void{ 
         for( let prediction_i = 0; prediction_i < predictions.length; ++prediction_i ){
             const numerical_features = jlboost_prediction_to_feature_dict(predictions[prediction_i]);
@@ -774,6 +875,16 @@ export class MorphJLBoostWordMap extends BoostWordMap{
      */
     specificLoad(data: any): AbstractWordMapWrapper {
         super.specificLoad(data);
+        this.jlboost_model = JLBoost.load(data.jlboost_model);
+        return this;
+    }
+
+    /**
+     * This is an abstract method which loads from a structure which is JSON-able.
+     * @param data - the data to load
+     */
+    async async_specificLoad(data: any): Promise<AbstractWordMapWrapper> {
+        await super.async_specificLoad(data);
         this.jlboost_model = JLBoost.load(data.jlboost_model);
         return this;
     }

@@ -76,6 +76,7 @@ The following class references are needed when interacting with the WordMapBoost
 4. Optionally the model can be serialized.  This makes it possible to train the model in a browser worker thread which is what is done in the [Alignment Transferer](https://github.com/JEdward7777/alignment-transferer/blob/master/src/workers/AlignmentTrainer.ts) demo of this module.  This also makes it possible to save and restore the model from disk or to train the model in the cloud and then ship the model to the browser just for inference.
     * `save`: This converts the trained model into a JSON-able set of arrays and dictionaries.
     * `AbstractWordMapWrapper.load`: This load converts set of arrays and dictionaries and converts it back into the model.  The saved data self indexes which model type was saved, so the right model is reproduced.
+    * `AbstractWordMapWrapper.async_load`: This is the same as load, but is an async version which utilizes setTimeout to yield the cpu to keep from freezing everything during a long load.
 
 5. Predictions are run on the model to get [suggestion](https://github.com/unfoldingWord/wordMAP/blob/master/src/core/Suggestion.ts)s.  This is done by running the `predict` method.  The first argument is an array of Tokens for the  
     * `sourceSentence`.  The second argument is an array of Tokens for the `targetSentence`.  Technically you can pass in strings instead but then you can't pass in morphological information on the Tokens.
