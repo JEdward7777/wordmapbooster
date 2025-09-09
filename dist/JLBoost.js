@@ -297,7 +297,7 @@ var JLBoost = /** @class */ (function () {
     };
     JLBoost.prototype.train = function (_a) {
         var _this = this;
-        var xy_data = _a.xy_data, _b = _a.y_index, y_index = _b === void 0 ? 'y' : _b, _c = _a.n_steps, n_steps = _c === void 0 ? 1000 : _c, _d = _a.tree_depth, tree_depth = _d === void 0 ? 2 : _d, _e = _a.talk, talk = _e === void 0 ? true : _e;
+        var xy_data = _a.xy_data, _b = _a.y_index, y_index = _b === void 0 ? 'y' : _b, _c = _a.n_steps, n_steps = _c === void 0 ? 1000 : _c, _d = _a.tree_depth, tree_depth = _d === void 0 ? 2 : _d, _e = _a.talk, talk = _e === void 0 ? true : _e, _f = _a.progress_callback, progress_callback = _f === void 0 ? null : _f;
         var current_output = this.predict(xy_data);
         //Drop all features which don't do anything.
         var featuresToDrop = [];
@@ -305,8 +305,8 @@ var JLBoost = /** @class */ (function () {
             //see if this is a categorical feature or a numerical feature.
             if (this_2.categorical_categories.includes(feature)) {
                 var features_found = [];
-                for (var _g = 0, xy_data_1 = xy_data; _g < xy_data_1.length; _g++) {
-                    var value = xy_data_1[_g];
+                for (var _h = 0, xy_data_1 = xy_data; _h < xy_data_1.length; _h++) {
+                    var value = xy_data_1[_h];
                     if (!features_found.includes(value[feature])) {
                         features_found.push(value[feature]);
                     }
@@ -336,8 +336,8 @@ var JLBoost = /** @class */ (function () {
             }
         };
         var this_2 = this;
-        for (var _i = 0, _f = Object.keys(xy_data[0]); _i < _f.length; _i++) {
-            var feature = _f[_i];
+        for (var _i = 0, _g = Object.keys(xy_data[0]); _i < _g.length; _i++) {
+            var feature = _g[_i];
             _loop_2(feature);
         }
         xy_data = xy_data.map(function (row) { return Object.fromEntries(Object.entries(row).filter(function (_a) {
@@ -377,11 +377,13 @@ var JLBoost = /** @class */ (function () {
                 if (talk) {
                     console.log("Step ".concat(n, ": Output  ").concat(new_loss, "  split on ").concat(new_tree.feature_index, " at ").concat(new_tree.split_value));
                 }
+                progress_callback === null || progress_callback === void 0 ? void 0 : progress_callback(n, n_steps, new_loss);
             }
             else {
                 if (talk) {
                     console.log("Step ".concat(n, ": Output [").concat(new_loss, "] split on ").concat(new_tree.feature_index, " at ").concat(new_tree.split_value, " --rejected"));
                 }
+                progress_callback === null || progress_callback === void 0 ? void 0 : progress_callback(n, n_steps, new_loss);
             }
         };
         var this_3 = this;

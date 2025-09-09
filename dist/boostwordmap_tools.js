@@ -876,7 +876,8 @@ var JLBoostWordMap = /** @class */ (function (_super) {
                 y_index: "output",
                 n_steps: _this.opts.train_steps,
                 tree_depth: _this.opts.tree_depth,
-                talk: true,
+                talk: (_this.opts.verbose_training !== undefined) ? _this.opts.verbose_training : true,
+                progress_callback: _this.opts.progress_callback,
             });
             resolve();
         });
@@ -950,7 +951,8 @@ var MorphJLBoostWordMap = /** @class */ (function (_super) {
                 y_index: "output",
                 n_steps: _this.opts.train_steps,
                 tree_depth: _this.opts.tree_depth,
-                talk: true,
+                talk: (_this.opts.verbose_training !== undefined) ? _this.opts.verbose_training : true,
+                progress_callback: _this.opts.progress_callback,
             });
             resolve();
         });

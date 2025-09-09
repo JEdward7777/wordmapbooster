@@ -73,6 +73,7 @@ interface JLBoost__train__NamedParameters {
     n_steps: number;
     tree_depth: number;
     talk: boolean;
+    progress_callback?: (step: number, trainingSteps: any, current_loss: number) => void;
 }
 interface JLBoost__constructor__NamedParameters {
     learning_rate?: number;
@@ -106,6 +107,6 @@ export declare class JLBoost {
     predict_single(data: {
         [key: string]: number | string;
     }): number;
-    train({ xy_data, y_index, n_steps, tree_depth, talk, }: JLBoost__train__NamedParameters): JLBoost;
+    train({ xy_data, y_index, n_steps, tree_depth, talk, progress_callback }: JLBoost__train__NamedParameters): JLBoost;
 }
 export {};
